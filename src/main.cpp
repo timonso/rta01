@@ -29,7 +29,6 @@ using vec2 = glm::vec2;
 using mat4 = glm::mat4;
 
 static GLFWwindow *window;
-static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode){};
 
 typedef mat4(*InstantiateFn)();
 
@@ -106,9 +105,9 @@ MaterialData matPhong_01 = {
 
 static mat4 renderFan_left_01() {
 	mat4 model = mat4(1.0f);
-	model = glm::rotate(model, glm::radians(fan_rotate_y), vec3(0, 1, 0));
-	model = glm::rotate(model, glm::radians(90.0f), vec3(1, 0, 0));
 	model = glm::translate(model, vec3(-4.0f, 4.0f, 0));
+	model = glm::rotate(model, glm::radians(90.0f), vec3(1, 0, 0));
+	model = glm::rotate(model, glm::radians(fan_rotate_y), vec3(0, 1, 0));
 	return model;
 }
 
@@ -424,9 +423,7 @@ void display() {
 		}
 	}
 	glBindVertexArray(0);
-	// glutSwapBuffers();
 }
-
 
 void updateScene() {
 	static double last_time = 0;
@@ -439,12 +436,6 @@ void updateScene() {
 
 	fan_rotate_y += 40.0f * delta;
 	fan_rotate_y = fmodf(fan_rotate_y, 360.0f);
-}
-
-void init()
-{
-	CompileShaders();
-	generateObjectBufferMesh();
 }
 
 void keypress(unsigned char key, int x, int y) {
@@ -531,6 +522,17 @@ void mouseMove(int curr_x, int curr_y) {
 	last_y = curr_y;
 }
 
+void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode)
+{
+	if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+	{
+
+	}
+
+	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+		glfwSetWindowShouldClose(window, GL_TRUE);
+}
+
 int main()
 {
 	if (!glfwInit())
@@ -564,6 +566,8 @@ int main()
 		return -1;
 	}
 
+	CompileShaders();
+	generateObjectBufferMesh();
 
 	glfwWindowHint(GLFW_SAMPLES, 4);
 	glEnable(GL_MULTISAMPLE);
@@ -579,17 +583,30 @@ int main()
 	ImGui::StyleColorsDark;
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 330");
-	init();
-
 
 	do
 	{
 		updateScene();
 		display();
+
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+		ImGui::Begin("Parameters");
+		ImGui::SliderFloat("Yaw", &camera.yaw, -1.0f, 1.0f);
+		ImGui::End();
+
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
 	while (!glfwWindowShouldClose(window));
+
+	ImGui_ImplOpenGL3_Shutdown() ;
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
 
 	glfwTerminate();
 	return 0;

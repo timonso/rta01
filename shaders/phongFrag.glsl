@@ -35,5 +35,5 @@ void main() {
 
 	vec4 phongColor = vec4(Id + Is + Ia, 1.0f);
 
-	finalColor = phongColor;
+	finalColor = vec4(1.0, 0.0, 0.0, 1.0);
 }
