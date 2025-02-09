@@ -1,0 +1,15 @@
+/Users/timon/Downloads/rta01/cmake-build-debug/CMakeFiles/imgui.dir
+/Users/timon/Downloads/rta01/cmake-build-debug/CMakeFiles/rta01.dir
+/Users/timon/Downloads/rta01/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/timon/Downloads/rta01/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/Users/timon/Downloads/rta01/cmake-build-debug/external/CMakeFiles/edit_cache.dir
+/Users/timon/Downloads/rta01/cmake-build-debug/external/CMakeFiles/rebuild_cache.dir
+/Users/timon/Downloads/rta01/cmake-build-debug/external/glad-3.3/CMakeFiles/glad.dir
+/Users/timon/Downloads/rta01/cmake-build-debug/external/glad-3.3/CMakeFiles/edit_cache.dir
+/Users/timon/Downloads/rta01/cmake-build-debug/external/glad-3.3/CMakeFiles/rebuild_cache.dir
+/Users/timon/Downloads/rta01/cmake-build-debug/external/glfw/CMakeFiles/edit_cache.dir
+/Users/timon/Downloads/rta01/cmake-build-debug/external/glfw/CMakeFiles/rebuild_cache.dir
+/Users/timon/Downloads/rta01/cmake-build-debug/external/glfw/src/CMakeFiles/glfw.dir
+/Users/timon/Downloads/rta01/cmake-build-debug/external/glfw/src/CMakeFiles/update_mappings.dir
+/Users/timon/Downloads/rta01/cmake-build-debug/external/glfw/src/CMakeFiles/edit_cache.dir
+/Users/timon/Downloads/rta01/cmake-build-debug/external/glfw/src/CMakeFiles/rebuild_cache.dir
