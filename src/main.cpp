@@ -21,6 +21,9 @@
 #include <imgui/imgui_impl_opengl3.h>
 #include <imgui/imgui_impl_glfw.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 using namespace std;
 using namespace glm;
 using vec4 = glm::vec4;
@@ -34,7 +37,7 @@ typedef mat4(*InstantiateFn)();
 
 // define the default camera properties, with 'direction' moving along the local y-axis
 struct Camera {
-	vec3 position = vec3(0.0f, 0.0f, 20.0f);
+	vec3 position = vec3(0.0f, 12.0f, 15.0f);
 	vec3 target = vec3(0.0f, 0.0f, 0.0f);
 	vec3 right = vec3(1.0f, 0.0f, 0.0f);
 	vec3 up = vec3(0.0f, 1.0f, 0.0f);
@@ -54,6 +57,8 @@ struct MaterialData {
 	vec4 specularColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);
 	GLfloat specularCoeff = 0.2f;
 	GLfloat phongExp = 100.0f;
+	unsigned int diffuseMap;
+	unsigned int alphaMap;
 };
 
 struct MeshData {
@@ -77,8 +82,6 @@ struct ModelData {
 	std::vector<MaterialData> materials;
 };
 
-GLuint phongShader;
-std::vector<GLuint*> shaders = { &phongShader };
 
 // window dimensions
 int width = 1200;
@@ -91,61 +94,124 @@ static std::stack<mat4> hierarchyStack;
 
 // animation parameters
 GLfloat fan_rotate_y = 0.0f;
+GLfloat plane_pitch = 0.0f; // x
+GLfloat plane_roll = 0.0f;  // z
+GLfloat plane_yaw = 0.0f;   // y
+
+bool usesQuaternions = false;
+bool isCockpitView = false;
+
+vec3 lastThirdPersonPosition = vec3(0.0f);
 
 vec3 up_global = vec3(0.0f, 1.0f, 0.0f);
 
-std::vector<ModelData> models;
-Camera camera;
+Camera thirdPersonCamera = {
+	.position = vec3(0.0f, 12.0f, 15.0f),
+};
+Camera firstPersonCamera = {
+	.position = vec3(0.0f, 1.2f, 1.5f),
+	.target = vec3(0.0f, 1.1f, 0.9f),
+};
+Camera* camera = &thirdPersonCamera;
+
+const std::string texturePath = "../textures/";
+vec4 lightPosition = vec4(-10.0f, 10.0f, 10.0f, 1.0f);
+
+GLuint phongShader;
+std::vector<GLuint*> shaders = { &phongShader };
 
 MaterialData matPhong_01 = {
 	// .shader = &phongShader,
 	.specularCoeff = 0.2f,
-	.phongExp = 5.0f,
+	.phongExp = 100.0f,
 };
 
-static mat4 renderFan_left_01() {
+static mat4 renderPlane() {
 	mat4 model = mat4(1.0f);
-	model = glm::translate(model, vec3(-4.0f, 4.0f, 0));
-	model = glm::rotate(model, glm::radians(90.0f), vec3(1, 0, 0));
-	model = glm::rotate(model, glm::radians(fan_rotate_y), vec3(0, 1, 0));
+	model = glm::rotate(model, glm::radians(180.0f), vec3(0, 1, 0));
+	model = glm::rotate(model, glm::radians(plane_pitch), vec3(1, 0, 0));
+	model = glm::rotate(model, glm::radians(plane_roll), vec3(0, 0, 1));
+	model = glm::rotate(model, glm::radians(plane_yaw), vec3(0, 1, 0));
+	// if (isCockpitView) {
+	// 	firstPersonCamera.position = vec3(model * vec4(firstPersonCamera.position, 1.0f));
+	// 	// reapply initial translation
+	// 	mat4 cameraMat = glm::translate(cameraMat, firstPersonCamera.direction);
+	//
+	// 	// update the view direction of the camera
+	// 	firstPersonCamera.direction = vec3(cameraMat * vec4(firstPersonCamera.direction, 0.0f));
+	//
+	// 	// recalculate the local direction vectors
+	// 	firstPersonCamera.target = firstPersonCamera.position + firstPersonCamera.direction;
+	// 	firstPersonCamera.right = normalize(cross(firstPersonCamera.direction, up_global));
+	// 	firstPersonCamera.up = normalize(cross(firstPersonCamera.right, firstPersonCamera.direction));
+	// 	// reapply initial translation
+	// 	cameraMat = glm::translate(cameraMat, firstPersonCamera.direction);
+	//
+	// 	// update the view direction of the camera
+	// 	firstPersonCamera.direction = vec3(cameraMat * vec4(firstPersonCamera.direction, 0.0f));
+	//
+	// 	// recalculate the local direction vectors
+	// 	firstPersonCamera.target = firstPersonCamera.position + firstPersonCamera.direction;
+	// 	firstPersonCamera.right = normalize(cross(firstPersonCamera.direction, up_global));
+	// 	firstPersonCamera.up = normalize(cross(firstPersonCamera.right, firstPersonCamera.direction));
+	// }
+	hierarchyStack.push(model);
 	return model;
 }
 
-const std::string texturePath = "textures/";
-vec4 lightPosition = vec4(-10.0f, 10.0f, 10.0f, 1.0f);
+static mat4 renderInterior() {
+	mat4 model = mat4(1.0f);
+	mat4 parentModelX = hierarchyStack.top();
+	model = parentModelX * model;
+	return model;
+}
+
+static mat4 renderPropeller() {
+	mat4 model = mat4(1.0f);
+	model = glm::translate(model, vec3(0, 0.4, 3));
+	model = glm::rotate(model, glm::radians(fan_rotate_y), vec3(0, 0, 1));
+	mat4 parentModelX = hierarchyStack.top();
+	model = parentModelX * model;
+	hierarchyStack.pop();
+	return model;
+}
+
 
 // define model objects and their instances
+std::vector<ModelData> models;
 static std::vector<ModelParams> modelPaths = {
-	{"../meshes/fan.obj", {renderFan_left_01}, {matPhong_01}},
+	{"../meshes/ww_plane.obj", {renderPlane}, {matPhong_01}},
+	{"../meshes/ww_plane_interior.obj", {renderInterior}, {matPhong_01}},
+	{"../meshes/ww_plane_propeller.obj", {renderPropeller}, {matPhong_01}},
 };
 
 #pragma region MESH LOADING
 
-//int createTexture(const char* path) {
-//	int width;
-//	int height;
-//	int channelCount;
-//	unsigned char* pixels = stbi_load(path, &width, &height, &channelCount, 0);
-//	unsigned int textureHandle;
-//
-//	glGenTextures(1, &textureHandle);
-//	glBindTexture(GL_TEXTURE_2D, textureHandle);
-//
-//	// for JPG textures
-//	GLint channelDepth = GL_RGB;
-//	if (channelCount == 4) {
-//		// for PNG textures with alpha channel
-//		channelDepth = GL_RGBA;
-//	}
-//	glTexImage2D(GL_TEXTURE_2D, 0, channelDepth, width, height, 0, channelDepth, GL_UNSIGNED_BYTE, pixels);
-//	glGenerateMipmap(GL_TEXTURE_2D);
-//
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-//
-//	stbi_image_free(pixels);
-//	return textureHandle;
-//}
+unsigned int createTexture(const char* path) {
+	int width;
+	int height;
+	int channelCount;
+	unsigned char* pixels = stbi_load(path, &width, &height, &channelCount, 0);
+	unsigned int textureHandle;
+
+	glGenTextures(1, &textureHandle);
+	glBindTexture(GL_TEXTURE_2D, textureHandle);
+
+	// for JPG textures
+	GLint channelDepth = GL_RGB;
+	if (channelCount == 4) {
+		// for PNG textures with alpha channel
+		channelDepth = GL_RGBA;
+	}
+	glTexImage2D(GL_TEXTURE_2D, 0, channelDepth, width, height, 0, channelDepth, GL_UNSIGNED_BYTE, pixels);
+	glGenerateMipmap(GL_TEXTURE_2D);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+	stbi_image_free(pixels);
+	return textureHandle;
+}
 
 ModelData read_model(const char* file_name) {
 	ModelData modelData;
@@ -203,6 +269,32 @@ ModelData read_model(const char* file_name) {
 			GLfloat sExp;
 			aiMaterial->Get(AI_MATKEY_SHININESS, sExp);
 			material.specularCoeff = sExp;
+
+			int diffuseTexCount = aiMaterial->GetTextureCount(aiTextureType_DIFFUSE);
+			if (diffuseTexCount) {
+				aiString imagePath;
+				aiMaterial->GetTexture(aiTextureType_DIFFUSE, 0, &imagePath);
+				std::string fullPath = texturePath + std::string(imagePath.C_Str());
+				material.diffuseMap = createTexture(fullPath.c_str());
+			}
+			else {
+				aiColor4D bColor;
+				aiMaterial->Get(AI_MATKEY_COLOR_DIFFUSE, bColor);
+				material.baseColor = vec4(bColor.r, bColor.g, bColor.b, bColor.a);
+			}
+
+			int alphaTexCount = aiMaterial->GetTextureCount(aiTextureType_OPACITY);
+			if (alphaTexCount) {
+				aiString imagePath;
+				aiMaterial->GetTexture(aiTextureType_OPACITY, 0, &imagePath);
+				std::string fullPath = texturePath + std::string(imagePath.C_Str());
+				material.alphaMap = createTexture(fullPath.c_str());
+			}
+			else {
+				GLfloat alpha;
+				aiMaterial->Get(AI_MATKEY_OPACITY, alpha);
+				material.alpha = alpha;
+			}
 
 			aiColor4D sColor;
 			aiMaterial->Get(AI_MATKEY_COLOR_SPECULAR, sColor);
@@ -375,9 +467,19 @@ void setMaterial(MaterialData material, mat4 locMat) {
 
 	GLint specularCoeffLoc = glGetUniformLocation(currentShader, "specularCoeff");
 	glUniform1f(specularCoeffLoc, material.specularCoeff);
+
+	GLint diffuseMapLoc = glGetUniformLocation(currentShader, "diffuseMap");
+	glUniform1i(diffuseMapLoc, 0);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, material.diffuseMap);
+
+	GLint alphaMapLoc = glGetUniformLocation(currentShader, "alphaMap");
+	glUniform1i(alphaMapLoc, 1);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, material.alphaMap);
 }
 
-void display() {
+void renderScene() {
 	vec4 backgroundColor = vec4(0.1f, 0.1f, 0.1f, 1.0f);
 
 	glEnable(GL_CULL_FACE);
@@ -387,7 +489,7 @@ void display() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	mat4 model = mat4(1.0f);
-	mat4 view = glm::lookAt(camera.position, camera.target, camera.up);
+	mat4 view = glm::lookAt(camera->position, camera->target, camera->up);
 	mat4 persp_proj = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 1000.0f);
 
 	vec4 LightPositionView = view * model * lightPosition;
@@ -425,6 +527,8 @@ void display() {
 	glBindVertexArray(0);
 }
 
+bool viewChanged = false;
+
 void updateScene() {
 	static double last_time = 0;
 
@@ -434,28 +538,36 @@ void updateScene() {
 	double delta = (curr_time - last_time);
 	last_time = curr_time;
 
-	fan_rotate_y += 40.0f * delta;
+	fan_rotate_y += 1500.0f * delta;
 	fan_rotate_y = fmodf(fan_rotate_y, 360.0f);
+
+	if (isCockpitView && !viewChanged) {
+		camera = &firstPersonCamera;
+		viewChanged = true;
+	} else {
+		// camera = &thirdPersonCamera;
+		viewChanged = false;
+	}
 }
 
 void keypress(unsigned char key, int x, int y) {
 	if (key == 'w') {
-		camera.position += camera.direction * camera.translateSpeed;
+		camera->position += camera->direction * camera->translateSpeed;
 	}
 	if (key == 's') {
-		camera.position -= camera.direction * camera.translateSpeed;
+		camera->position -= camera->direction * camera->translateSpeed;
 	}
 	if (key == 'q') {
-		camera.position += camera.up * camera.translateSpeed;
+		camera->position += camera->up * camera->translateSpeed;
 	}
 	if (key == 'e') {
-		camera.position -= camera.up * camera.translateSpeed;
+		camera->position -= camera->up * camera->translateSpeed;
 	}
 	if (key == 'd') {
-		camera.position += camera.right * camera.translateSpeed;
+		camera->position += camera->right * camera->translateSpeed;
 	}
 	if (key == 'a') {
-		camera.position -= camera.right * camera.translateSpeed;
+		camera->position -= camera->right * camera->translateSpeed;
 	}
 	// exit program on pressing 'Esc'
 	if (key == 27) {
@@ -463,13 +575,13 @@ void keypress(unsigned char key, int x, int y) {
 	}
 
 	// constrain the camera position to a certain volume in the scene
-	// camera.position.v[0] = min(max(camera.position.v[0], -60.0f), 60.0f);
-	// camera.position.v[1] = min(max(camera.position.v[1], -40.0f), 40.0f);
-	// camera.position.v[2] = min(max(camera.position.v[2], -40.0f), 150.0f);
+	// camera->position.v[0] = min(max(camera->position.v[0], -60.0f), 60.0f);
+	// camera->position.v[1] = min(max(camera->position.v[1], -40.0f), 40.0f);
+	// camera->position.v[2] = min(max(camera->position.v[2], -40.0f), 150.0f);
 
 	// update the point the camera looks at by slightly moving away from
 	// the camera position along the camera view direction
-	camera.target = camera.position + camera.direction;
+	camera->target = camera->position + camera->direction;
 }
 
 void mouseMove(int curr_x, int curr_y) {
@@ -477,36 +589,36 @@ void mouseMove(int curr_x, int curr_y) {
 	static int last_y = curr_y;
 
 	// calculate mouse position delta
-	float delta_x = (curr_x - last_x) * camera.rotateSpeed;
-	float delta_y = (curr_y - last_y) * camera.rotateSpeed;
+	float delta_x = (curr_x - last_x) * camera->rotateSpeed;
+	float delta_y = (curr_y - last_y) * camera->rotateSpeed;
 
-	float newYaw = camera.yaw + delta_x;
-	float newPitch = camera.pitch + delta_y;
+	float newYaw = camera->yaw + delta_x;
+	float newPitch = camera->pitch + delta_y;
 
 	// translate to origin
 	mat4 cameraMat = mat4(1.0f);
-	cameraMat = glm::translate(cameraMat, -camera.direction);
+	cameraMat = glm::translate(cameraMat, -camera->direction);
 
 	// rotate according to the deltas
 	cameraMat = glm::rotate(cameraMat, glm::radians(-delta_x), vec3(0, 1, 0));
 
 	// constrain camera pitch
-	if (abs(newPitch) < camera.maxRotation) {
+	if (abs(newPitch) < camera->maxRotation) {
 		cameraMat = glm::rotate(cameraMat, glm::radians(-delta_y), vec3(1, 0, 0));
-		camera.yaw = newYaw;
-		camera.pitch = newPitch;
+		camera->yaw = newYaw;
+		camera->pitch = newPitch;
 	}
 
 	// reapply initial translation
-	cameraMat = glm::translate(cameraMat, camera.direction);
+	cameraMat = glm::translate(cameraMat, camera->direction);
 
 	// update the view direction of the camera
-	camera.direction = vec3(cameraMat * vec4(camera.direction, 0.0f));
+	camera->direction = vec3(cameraMat * vec4(camera->direction, 0.0f));
 
 	// recalculate the local direction vectors
-	camera.target = camera.position + camera.direction;
-	camera.right = normalize(cross(camera.direction, up_global));
-	camera.up = normalize(cross(camera.right, camera.direction));
+	camera->target = camera->position + camera->direction;
+	camera->right = normalize(cross(camera->direction, up_global));
+	camera->up = normalize(cross(camera->right, camera->direction));
 
 	if (curr_x < 20 || curr_x > width - 20) {
 		curr_x = center_x;
@@ -526,11 +638,35 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 {
 	if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
 	{
-
+		isCockpitView = !isCockpitView;
 	}
 
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, GL_TRUE);
+}
+
+
+void drawUI() {
+	ImGui_ImplOpenGL3_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+	ImGui::Begin("Parameters");
+	ImGui::Text("Camera pos:");
+	ImGui::SliderFloat("Xp", &camera->position.x, -50.0f, 50.0f);
+	ImGui::SliderFloat("Yp", &camera->position.y, -50.0f, 50.0f);
+	ImGui::SliderFloat("Zp", &camera->position.z, -50.0f, 50.0f);
+	ImGui::Text("Camera target:");
+	ImGui::SliderFloat("Xt", &camera->target.x, -50.0f, 50.0f);
+	ImGui::SliderFloat("Yt", &camera->target.y, -50.0f, 50.0f);
+	ImGui::SliderFloat("Zt", &camera->target.z, -50.0f, 50.0f);
+	ImGui::SliderFloat("Plane Pitch", &plane_pitch, 0.0f, 360.0f);
+	ImGui::SliderFloat("Plane Roll", &plane_roll, 0.0f, 360.0f);
+	ImGui::SliderFloat("Plane Yaw", &plane_yaw, 0.0f, 360.0f);
+	ImGui::Checkbox("First-person view", &isCockpitView);
+	ImGui::End();
+
+	ImGui::Render();
+	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 int main()
@@ -580,24 +716,15 @@ int main()
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO();
 	(void)io;
-	ImGui::StyleColorsDark;
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 330");
 
 	do
 	{
 		updateScene();
-		display();
+		renderScene();
 
-		ImGui_ImplOpenGL3_NewFrame();
-		ImGui_ImplGlfw_NewFrame();
-		ImGui::NewFrame();
-		ImGui::Begin("Parameters");
-		ImGui::SliderFloat("Yaw", &camera.yaw, -1.0f, 1.0f);
-		ImGui::End();
-
-		ImGui::Render();
-		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+		drawUI();
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
