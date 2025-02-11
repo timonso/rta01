@@ -19,7 +19,7 @@ void main(){
 
   // Convert vertex normal, and light position to view coords
   // Normal in view space
-  PointNormal = vec3(ModelViewMatrix * vec4(vertex_normal, 0.0));
+  PointNormal = normalize(vec3(ModelViewMatrix * vec4(vertex_normal, 0.0)));
 
   // Position in view space
   PointPosition = vec3(ModelViewMatrix * vec4(vertex_position ,1.0));
