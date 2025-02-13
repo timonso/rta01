@@ -53,15 +53,15 @@ struct Camera {
 };
 
 struct MaterialData {
-    // std::string name = "material";
+    std::string name = "material";
     GLuint *shader;
     vec4 baseColor = vec4(0.9f, 0.9f, 0.9f, 1.0f);
     GLfloat alpha = 1.0f;
     vec4 specularColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);
     GLfloat specularCoeff = 0.2f;
     GLfloat phongExp = 100.0f;
-    unsigned int diffuseMap;
-    unsigned int alphaMap;
+    GLuint diffuseMap;
+    GLuint alphaMap;
 };
 
 struct MeshData {
@@ -128,10 +128,8 @@ MaterialData matPhong_01 = {
 
 static mat4 renderPlane() {
     mat4 model = mat4(1.0f);
+    // make plane model face away from the camera
     model = glm::rotate(model, glm::radians(180.0f), vec3(0, 1, 0));
-    // model = glm::rotate(model, glm::radians(rotationAngles.y), vec3(0, 1, 0)); // yaw
-    // model = glm::rotate(model, glm::radians(rotationAngles.x), vec3(1, 0, 0)); // pitch
-    // model = glm::rotate(model, glm::radians(rotationAngles.z), vec3(0, 0, 1)); // roll
     mat4 rotationMat = glm::eulerAngleYXZ(glm::radians(rotationAngles.y), glm::radians(rotationAngles.x),
                                           glm::radians(rotationAngles.z));
     if (useQuaternions) {
@@ -139,12 +137,14 @@ static mat4 renderPlane() {
         rotationMat = glm::toMat4(quaternion);
     }
     model *= rotationMat;
+
     if (isCockpitView) {
         firstPersonCamera.position = vec3(0.0f, 1.2f, 0.05f);
         firstPersonCamera.position = vec3(model * vec4(firstPersonCamera.position, 1.0f));
         firstPersonCamera.direction = vec3(model * vec4(vec3(0.0f, 0.0f, -1.0f), 0.0f));
         firstPersonCamera.target = firstPersonCamera.position - firstPersonCamera.direction;
     }
+
     hierarchyStack.push(model);
     return model;
 }
@@ -166,13 +166,6 @@ static mat4 renderPropeller() {
     return model;
 }
 
-static mat4 renderPitchGizmo() {
-    mat4 model = mat4(1.0f);
-    mat4 parentModelX = hierarchyStack.top();
-    model = parentModelX * model;
-    return model;
-}
-
 
 // define model objects and their instances
 std::vector<ModelData> models;
@@ -184,12 +177,16 @@ static std::vector<ModelParams> modelPaths = {
 
 #pragma region MESH LOADING
 
-unsigned int createTexture(const char *path) {
+GLuint createTexture(const char *path) {
     int width;
     int height;
     int channelCount;
     unsigned char *pixels = stbi_load(path, &width, &height, &channelCount, 0);
-    unsigned int textureHandle;
+    GLuint textureHandle;
+
+    if (!pixels) {
+        std::cout << "could not load texture: " << path << std::endl;
+    }
 
     glGenTextures(1, &textureHandle);
     glBindTexture(GL_TEXTURE_2D, textureHandle);
@@ -205,6 +202,8 @@ unsigned int createTexture(const char *path) {
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
     stbi_image_free(pixels);
     return textureHandle;
@@ -228,7 +227,6 @@ ModelData read_model(const char *file_name) {
 
     for (unsigned int m_i = 0; m_i < scene->mNumMeshes; m_i++) {
         aiMesh *mesh = scene->mMeshes[m_i];
-        //printf("    %i vertices in mesh\n", mesh->mNumVertices);
         MeshData submesh;
         submesh.mPointCount = mesh->mNumVertices;
         submesh.materialIndex = mesh->mMaterialIndex;
@@ -257,9 +255,9 @@ ModelData read_model(const char *file_name) {
         const aiMaterial *aiMaterial = scene->mMaterials[i];
         MaterialData material;
 
-        // aiString name;
-        // aiMaterial->Get(AI_MATKEY_NAME, name);
-        // material.name = name.C_Str();
+        aiString name;
+        aiMaterial->Get(AI_MATKEY_NAME, name);
+        material.name = name.C_Str();
 
         material.shader = &phongShader;
 
@@ -273,6 +271,7 @@ ModelData read_model(const char *file_name) {
             aiMaterial->GetTexture(aiTextureType_DIFFUSE, 0, &imagePath);
             std::string fullPath = texturePath + std::string(imagePath.C_Str());
             material.diffuseMap = createTexture(fullPath.c_str());
+
         } else {
             aiColor4D bColor;
             aiMaterial->Get(AI_MATKEY_COLOR_DIFFUSE, bColor);
@@ -295,7 +294,7 @@ ModelData read_model(const char *file_name) {
         aiMaterial->Get(AI_MATKEY_COLOR_SPECULAR, sColor);
         material.specularColor = vec4(sColor.r, sColor.g, sColor.b, sColor.a);
 
-        modelData.materials.push_back(material);
+    modelData.materials.emplace_back(material);
     }
 
     aiReleaseImport(scene);
@@ -389,7 +388,7 @@ void generateObjectBufferMesh() {
         ModelData modelData = read_model(currentModel.path);
         std::vector<MeshData> &submeshes = modelData.submeshes;
         modelData.instantiateFns = currentModel.instantiateFns;
-        modelData.materials = currentModel.materials;
+        // modelData.materials = currentModel.materials;
 
         // process all meshes in each loaded model
         for (int j = 0; j < submeshes.size(); j++) {
@@ -442,7 +441,7 @@ void generateObjectBufferMesh() {
 #pragma endregion VBO_FUNCTIONS
 
 // write all material properties to the shader
-void setMaterial(MaterialData material, mat4 locMat) {
+void setMaterial(MaterialData &material, mat4 locMat) {
     GLuint currentShader = phongShader;
     glUseProgram(currentShader);
 
@@ -465,14 +464,19 @@ void setMaterial(MaterialData material, mat4 locMat) {
     glUniform1f(specularCoeffLoc, material.specularCoeff);
 
     GLint diffuseMapLoc = glGetUniformLocation(currentShader, "diffuseMap");
-    glUniform1i(diffuseMapLoc, 0);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, material.diffuseMap);
+    glUniform1i(diffuseMapLoc, 0);
 
     GLint alphaMapLoc = glGetUniformLocation(currentShader, "alphaMap");
-    glUniform1i(alphaMapLoc, 1);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, material.alphaMap);
+    glUniform1i(alphaMapLoc, 1);
+
+    GLint normalMapLoc = glGetUniformLocation(currentShader, "normalMap");
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, material.alphaMap);
+    glUniform1i(alphaMapLoc, 1);
 }
 
 void renderScene() {
@@ -505,7 +509,7 @@ void renderScene() {
 
     // instantiate all submeshes of each model
     for (int i = 0; i < models.size(); i++) {
-        ModelData currentModel = models[i];
+        ModelData &currentModel = models[i];
         int numInstances = currentModel.instantiateFns.size();
         std::vector<MeshData> submeshes = currentModel.submeshes;
         // instantiate and draw meshes with their assigned materials
@@ -513,7 +517,7 @@ void renderScene() {
             mat4 currentLocMat = currentModel.instantiateFns[k]();
             for (int j = 0; j < submeshes.size(); j++) {
                 MeshData &currentMesh = submeshes[j];
-                MaterialData currentMaterial = matPhong_01;
+                MaterialData &currentMaterial = currentModel.materials[currentMesh.materialIndex];
                 setMaterial(currentMaterial, currentLocMat);
                 glBindVertexArray(currentMesh.vao);
                 glDrawArrays(GL_TRIANGLES, 0, currentMesh.mPointCount);
@@ -611,11 +615,14 @@ void drawUI() {
     ImGui::SliderFloat("Plane Yaw", &rotationAngles.y, -180.0f, 180.0f);
     ImGui::SliderFloat("Plane Pitch", &rotationAngles.x, -180.0f, 180.0f);
     ImGui::SliderFloat("Plane Roll", &rotationAngles.z, -180.0f, 180.0f);
+    ImGui::Checkbox("Use quaternions", &useQuaternions);
     if (ImGui::Button("Reset rotation")) {
         rotationAngles = vec3(0.0f);
     }
 
-    ImGui::Checkbox("Use quaternions", &useQuaternions);
+    ImGui::SliderFloat("Xl", &lightPosition.x, -100.0f, 100.0f);
+    ImGui::SliderFloat("Yl", &lightPosition.y, -100.0f, 100.0f);
+    ImGui::SliderFloat("Zl", &lightPosition.z, -100.0f, 100.0f);
 
     ImGui::End();
 

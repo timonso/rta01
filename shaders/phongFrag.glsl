@@ -1,4 +1,4 @@
-#version 330
+#version 330 core
 
 uniform sampler2D diffuseMap;
 uniform sampler2D alphaMap;
