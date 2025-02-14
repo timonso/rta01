@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0)
-project(rta01)
+project(rtr03)
 
 find_package(OpenGL REQUIRED)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
@@ -31,10 +31,10 @@ add_library(imgui STATIC
 
 link_directories(external/assimp/lib/)
 
-add_executable(rta01
+add_executable(rtr03
 	src/main.cpp
 )
-target_link_libraries(rta01
+target_link_libraries(rtr03
 	${OPENGL_LIBRARY}
 	glfw
 	glad

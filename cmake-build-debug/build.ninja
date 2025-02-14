@@ -11,7 +11,7 @@
 # =============================================================================
 
 # =============================================================================
-# Project: rta01
+# Project: rtr03
 # Configurations: Debug
 # =============================================================================
 
@@ -109,38 +109,38 @@ build libimgui.a: CXX_STATIC_LIBRARY_LINKER__imgui_Debug CMakeFiles/imgui.dir/ex
   TARGET_PDB = imgui.a.dbg
 
 # =============================================================================
-# Object build statements for EXECUTABLE target rta01
+# Object build statements for EXECUTABLE target rtr03
 
 
 #############################################
-# Order-only phony target for rta01
+# Order-only phony target for rtr03
 
-build cmake_object_order_depends_target_rta01: phony || cmake_object_order_depends_target_glad cmake_object_order_depends_target_glfw cmake_object_order_depends_target_imgui
+build cmake_object_order_depends_target_rtr03: phony || cmake_object_order_depends_target_glad cmake_object_order_depends_target_glfw cmake_object_order_depends_target_imgui
 
-build CMakeFiles/rta01.dir/src/main.cpp.o: CXX_COMPILER__rta01_unscanned_Debug /Users/timon/Downloads/rta01/src/main.cpp || cmake_object_order_depends_target_rta01
-  DEP_FILE = CMakeFiles/rta01.dir/src/main.cpp.o.d
+build CMakeFiles/rtr03.dir/src/main.cpp.o: CXX_COMPILER__rtr03_unscanned_Debug /Users/timon/Downloads/rta01/src/main.cpp || cmake_object_order_depends_target_rtr03
+  DEP_FILE = CMakeFiles/rtr03.dir/src/main.cpp.o.d
   FLAGS = -std=c++20 -g -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -fcolor-diagnostics
   INCLUDES = -I/Users/timon/Downloads/rta01/external/glfw/include -I/Users/timon/Downloads/rta01/external/glm-0.9.7.1 -I/Users/timon/Downloads/rta01/external/glad-opengl-3.3/include -I/Users/timon/Downloads/rta01/external/assimp/include -I/Users/timon/Downloads/rta01/external -I/Users/timon/Downloads/rta01/external/imgui -I/Users/timon/Downloads/rta01/lab2 -I/Users/timon/Downloads/rta01/external/glad-3.3/include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks
-  OBJECT_DIR = CMakeFiles/rta01.dir
-  OBJECT_FILE_DIR = CMakeFiles/rta01.dir/src
+  OBJECT_DIR = CMakeFiles/rtr03.dir
+  OBJECT_FILE_DIR = CMakeFiles/rtr03.dir/src
 
 
 # =============================================================================
-# Link build statements for EXECUTABLE target rta01
+# Link build statements for EXECUTABLE target rtr03
 
 
 #############################################
-# Link the executable rta01
+# Link the executable rtr03
 
-build rta01: CXX_EXECUTABLE_LINKER__rta01_Debug CMakeFiles/rta01.dir/src/main.cpp.o | libglfw.3.5.dylib libglad.dylib libimgui.a || libglad.dylib libglfw.dylib libimgui.a libglfw.dylib
+build rtr03: CXX_EXECUTABLE_LINKER__rtr03_Debug CMakeFiles/rtr03.dir/src/main.cpp.o | libglfw.3.5.dylib libglad.dylib libimgui.a || libglad.dylib libglfw.dylib libimgui.a libglfw.dylib
   FLAGS = -std=c++20 -g -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk
   LINK_LIBRARIES = -Wl,-rpath,/Users/timon/Downloads/rta01/external/assimp/lib -Wl,-rpath,/Users/timon/Downloads/rta01/cmake-build-debug  -framework OpenGL  -framework OpenGL  libglfw.3.5.dylib  libglad.dylib  -lassimp  libimgui.a
   LINK_PATH = -L/Users/timon/Downloads/rta01/external/assimp/lib
-  OBJECT_DIR = CMakeFiles/rta01.dir
+  OBJECT_DIR = CMakeFiles/rtr03.dir
   POST_BUILD = :
   PRE_LINK = :
-  TARGET_FILE = rta01
-  TARGET_PDB = rta01.dbg
+  TARGET_FILE = rtr03
+  TARGET_PDB = rtr03.dbg
 
 
 #############################################
@@ -553,7 +553,7 @@ build update_mappings: phony external/glfw/src/update_mappings
 #############################################
 # Folder: /Users/timon/Downloads/rta01/cmake-build-debug
 
-build all: phony libimgui.a rta01 external/all
+build all: phony libimgui.a rtr03 external/all
 
 # =============================================================================
 

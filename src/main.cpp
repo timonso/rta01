@@ -1,5 +1,3 @@
-// This file reuses code from my work for the Computer Graphics class assignments, including parts from the template file for Lab 4 of that class
-
 #include <iostream>
 #include <string>
 #define _USE_MATH_DEFINES
@@ -10,9 +8,6 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtx/euler_angles.hpp>
-#include<glm/gtx/quaternion.hpp>
-#include<glm/common.hpp>
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 
@@ -25,7 +20,7 @@
 #include <imgui/imgui_impl_glfw.h>
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#include "stb/stb_image.h"
 
 using namespace std;
 using namespace glm;
@@ -40,14 +35,14 @@ typedef mat4 (*InstantiateFn)();
 
 // define the default camera properties, with 'direction' moving along the local y-axis
 struct Camera {
-    vec3 position = vec3(0.0f, 12.0f, 15.0f);
+    vec3 position = vec3(0.0f, 0.0f, 15.0f);
     vec3 target = vec3(0.0f, 0.0f, 0.0f);
     vec3 right = vec3(1.0f, 0.0f, 0.0f);
     vec3 up = vec3(0.0f, 1.0f, 0.0f);
     vec3 direction = vec3(0.0f, 0.0f, -1.0f);
     GLfloat pitch = 0.0f;
     GLfloat yaw = 0.0f;
-    GLfloat translateSpeed = 1.0f;
+    GLfloat translateSpeed = 0.6f;
     GLfloat rotateSpeed = 0.5f;
     GLfloat maxRotation = 60.0f;
 };
@@ -62,6 +57,7 @@ struct MaterialData {
     GLfloat phongExp = 100.0f;
     GLuint diffuseMap;
     GLuint alphaMap;
+    GLuint normalMap;
 };
 
 struct MeshData {
@@ -71,6 +67,8 @@ struct MeshData {
     std::vector<vec3> mVertices;
     std::vector<vec3> mNormals;
     std::vector<vec2> mTextureCoords;
+    std::vector<vec3> mTangents;
+    std::vector<vec3> mBitangents;
 };
 
 struct ModelParams {
@@ -95,21 +93,13 @@ int center_y = int(height / 2);
 // a stack that allows children models to access model matrices from their parent models
 static std::stack<mat4> hierarchyStack;
 
-// animation parameters
-GLfloat fan_rotate_y = 0.0f;
-
-vec3 rotationAngles = vec3(0.0f);
-
-bool useQuaternions = false;
-bool isCockpitView = false;
-
+// global parameters
+GLfloat selfRotation = 0.0f;
+bool usesNormalMap = true;
 vec3 up_global = vec3(0.0f, 1.0f, 0.0f);
 
 Camera thirdPersonCamera = {
-    .position = vec3(0.0f, 7.0f, 15.0f),
-};
-Camera firstPersonCamera = {
-    .position = vec3(0.0f, 1.2f, 0.05f),
+    .position = vec3(0.0f, 0.0f, 10.0f),
 };
 Camera *camera = &thirdPersonCamera;
 
@@ -119,60 +109,43 @@ vec4 lightPosition = vec4(-10.0f, 10.0f, 10.0f, 1.0f);
 GLuint phongShader;
 std::vector<GLuint *> shaders = {&phongShader};
 
-MaterialData matPhong_01 = {
-    // .shader = &phongShader,
-    .specularCoeff = 0.2f,
-    .phongExp = 100.0f,
-    .baseColor = vec4(0.9f, 0.3f, 0.0f, 1.0f),
-};
+GLfloat specularScale = 1.0f;
+GLfloat phongExpScale = 1.0f;
 
-static mat4 renderPlane() {
+static mat4 renderTwist() {
     mat4 model = mat4(1.0f);
-    // make plane model face away from the camera
-    model = glm::rotate(model, glm::radians(180.0f), vec3(0, 1, 0));
-    mat4 rotationMat = glm::eulerAngleYXZ(glm::radians(rotationAngles.y), glm::radians(rotationAngles.x),
-                                          glm::radians(rotationAngles.z));
-    if (useQuaternions) {
-        glm::quat quaternion = glm::quat(glm::radians(rotationAngles));
-        rotationMat = glm::toMat4(quaternion);
-    }
-    model *= rotationMat;
-
-    if (isCockpitView) {
-        firstPersonCamera.position = vec3(0.0f, 1.2f, 0.05f);
-        firstPersonCamera.position = vec3(model * vec4(firstPersonCamera.position, 1.0f));
-        firstPersonCamera.direction = vec3(model * vec4(vec3(0.0f, 0.0f, -1.0f), 0.0f));
-        firstPersonCamera.target = firstPersonCamera.position - firstPersonCamera.direction;
-    }
-
+    model = glm::rotate(model, glm::radians(-selfRotation), vec3(1, 0, 0));
     hierarchyStack.push(model);
     return model;
 }
 
-static mat4 renderInterior() {
+static mat4 renderTwistMirrored() {
     mat4 model = mat4(1.0f);
-    mat4 parentModelX = hierarchyStack.top();
-    model = parentModelX * model;
-    return model;
-}
-
-static mat4 renderPropeller() {
-    mat4 model = mat4(1.0f);
-    model = glm::translate(model, vec3(0, 0.4, 3));
-    model = glm::rotate(model, glm::radians(fan_rotate_y), vec3(0, 0, 1));
-    mat4 parentModelX = hierarchyStack.top();
-    model = parentModelX * model;
+    model = glm::rotate(model, glm::radians(180.0f), vec3(0, 0, 1));
+    model *= hierarchyStack.top();
     hierarchyStack.pop();
     return model;
 }
 
+static mat4 renderSphere() {
+    mat4 model = mat4(1.0f);
+    hierarchyStack.push(model);
+    return model;
+}
+
+static mat4 renderSphereMirrored() {
+    mat4 model = mat4(1.0f);
+    model = glm::rotate(model, glm::radians(180.0f), vec3(0, 0, 1));
+    model *= hierarchyStack.top();
+    hierarchyStack.pop();
+    return model;
+}
 
 // define model objects and their instances
 std::vector<ModelData> models;
 static std::vector<ModelParams> modelPaths = {
-    {"../meshes/ww_plane.obj", {renderPlane}, {matPhong_01}},
-    {"../meshes/ww_plane_interior.obj", {renderInterior}, {matPhong_01}},
-    {"../meshes/ww_plane_propeller.obj", {renderPropeller}, {matPhong_01}},
+    {"../meshes/twist.obj", {renderTwist, renderTwistMirrored}},
+    {"../meshes/sphere.obj", {renderSphere, renderSphereMirrored}},
 };
 
 #pragma region MESH LOADING
@@ -209,6 +182,42 @@ GLuint createTexture(const char *path) {
     return textureHandle;
 }
 
+void getTangents(MeshData &currentMesh) {
+    std::vector<vec3> &vertices = currentMesh.mVertices;
+    std::vector<vec2> &texCo = currentMesh.mTextureCoords;
+    std::vector<vec3> &normals = currentMesh.mNormals;
+    std::vector<vec3> tangents(currentMesh.mPointCount, vec3(0.0f, 0.0f, 0.0f));
+
+    for (int i = 0; i < currentMesh.mPointCount; i += 3) {
+        vec3 &v0 = vertices[i + 0];
+        vec3 &v1 = vertices[i + 1];
+        vec3 &v2 = vertices[i + 2];
+
+        vec2 &uv0 = texCo[i + 0];
+        vec2 &uv1 = texCo[i + 1];
+        vec2 &uv2 = texCo[i + 2];
+
+        vec3 deltaPos1 = v1 - v0;
+        vec3 deltaPos2 = v2 - v0;
+
+        vec2 deltaUV1 = uv1 - uv0;
+        vec2 deltaUV2 = uv2 - uv0;
+
+        float r = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
+        vec3 tangent = (deltaPos1 * deltaUV2.y - deltaPos2 * deltaUV1.y) * r;
+
+        tangents[i + 0] += tangent;
+        tangents[i + 1] += tangent;
+        tangents[i + 2] += tangent;
+    }
+
+    for (int i = 0; i < currentMesh.mPointCount; i++) {
+        tangents[i] = normalize((tangents[i] - normals[i] * glm::dot(normals[i], tangents[i])));
+    }
+
+    currentMesh.mTangents = tangents;
+}
+
 ModelData read_model(const char *file_name) {
     ModelData modelData;
     const aiScene *scene = aiImportFile(
@@ -221,9 +230,9 @@ ModelData read_model(const char *file_name) {
         return modelData;
     }
 
-    //printf("  %i materials\n", scene->mNumMaterials);
-    //printf("  %i meshes\n", scene->mNumMeshes);
-    //printf("  %i textures\n", scene->mNumTextures);
+    printf("reading model file: %s\n", file_name);
+    printf("  %i meshes\n", scene->mNumMeshes);
+    printf("  %i textures\n", scene->mNumTextures);
 
     for (unsigned int m_i = 0; m_i < scene->mNumMeshes; m_i++) {
         aiMesh *mesh = scene->mMeshes[m_i];
@@ -234,18 +243,26 @@ ModelData read_model(const char *file_name) {
         for (unsigned int v_i = 0; v_i < mesh->mNumVertices; v_i++) {
             if (mesh->HasPositions()) {
                 const aiVector3D *vp = &(mesh->mVertices[v_i]);
-                submesh.mVertices.push_back(vec3(vp->x, vp->y, vp->z));
+                submesh.mVertices.emplace_back(vp->x, vp->y, vp->z);
             }
             if (mesh->HasNormals()) {
                 const aiVector3D *vn = &(mesh->mNormals[v_i]);
-                submesh.mNormals.push_back(vec3(vn->x, vn->y, vn->z));
+                submesh.mNormals.emplace_back(vn->x, vn->y, vn->z);
             }
             if (mesh->HasTextureCoords(0)) {
                 const aiVector3D *vt = &(mesh->mTextureCoords[0][v_i]);
-                submesh.mTextureCoords.push_back(vec2(vt->x, vt->y));
+                submesh.mTextureCoords.emplace_back(vt->x, vt->y);
             }
             if (mesh->HasTangentsAndBitangents()) {
+                const aiVector3D *vta = &(mesh->mTangents[v_i]);
+                submesh.mTangents.emplace_back(vta->x, vta->y, vta->z);
+                const aiVector3D *vbi = &(mesh->mBitangents[v_i]);
+                submesh.mTangents.emplace_back(vbi->x, vbi->y, vbi->z);
             }
+        }
+        if (!submesh.mTangents.size()) {
+            printf("  calculating tangents and bitangents for: %s\n", file_name);
+            getTangents(submesh);
         }
         modelData.submeshes.push_back(submesh);
     }
@@ -271,7 +288,6 @@ ModelData read_model(const char *file_name) {
             aiMaterial->GetTexture(aiTextureType_DIFFUSE, 0, &imagePath);
             std::string fullPath = texturePath + std::string(imagePath.C_Str());
             material.diffuseMap = createTexture(fullPath.c_str());
-
         } else {
             aiColor4D bColor;
             aiMaterial->Get(AI_MATKEY_COLOR_DIFFUSE, bColor);
@@ -290,11 +306,19 @@ ModelData read_model(const char *file_name) {
             material.alpha = alpha;
         }
 
+        int normalTexCount = aiMaterial->GetTextureCount(aiTextureType_HEIGHT);
+        if (normalTexCount) {
+            aiString imagePath;
+            aiMaterial->GetTexture(aiTextureType_HEIGHT, 0, &imagePath);
+            std::string fullPath = texturePath + std::string(imagePath.C_Str());
+            material.normalMap = createTexture(fullPath.c_str());
+        }
+
         aiColor4D sColor;
         aiMaterial->Get(AI_MATKEY_COLOR_SPECULAR, sColor);
         material.specularColor = vec4(sColor.r, sColor.g, sColor.b, sColor.a);
 
-    modelData.materials.emplace_back(material);
+        modelData.materials.emplace_back(material);
     }
 
     aiReleaseImport(scene);
@@ -353,8 +377,8 @@ void CompileShaders() {
         std::cerr << "Error creating shader program..." << std::endl;
     }
 
-    AddShader(phongShader, "../shaders/baseVert.glsl", GL_VERTEX_SHADER);
-    AddShader(phongShader, "../shaders/phongFrag.glsl", GL_FRAGMENT_SHADER);
+    AddShader(phongShader, "../shaders/tangentspace.vert", GL_VERTEX_SHADER);
+    AddShader(phongShader, "../shaders/tangentspace.frag", GL_FRAGMENT_SHADER);
 
     GLint Success = 0;
     GLchar ErrorLog[1024] = {'\0'};
@@ -415,22 +439,44 @@ void generateObjectBufferMesh() {
             glBufferData(GL_ARRAY_BUFFER, currentMesh.mPointCount * sizeof(vec2), &currentMesh.mTextureCoords[0],
                          GL_STATIC_DRAW);
 
-            GLuint vertPosLoc, vertNormalLoc, vertTexLoc;
+            unsigned int vta_vbo = vao;
+            glGenBuffers(1, &vta_vbo);
+            glBindBuffer(GL_ARRAY_BUFFER, vta_vbo);
+            glBufferData(GL_ARRAY_BUFFER, currentMesh.mPointCount * sizeof(vec3), &currentMesh.mTangents[0],
+                         GL_STATIC_DRAW);
+
+            unsigned int vbi_vbo = vao;
+            glGenBuffers(1, &vbi_vbo);
+            glBindBuffer(GL_ARRAY_BUFFER, vbi_vbo);
+            glBufferData(GL_ARRAY_BUFFER, currentMesh.mPointCount * sizeof(vec3), &currentMesh.mBitangents[0],
+                         GL_STATIC_DRAW);
+
+            GLuint vertPosLoc, vertNorLoc, vertTexLoc, vertTanLoc, vertBitLoc;
             vertPosLoc = glGetAttribLocation(phongShader, "vertex_position");
-            vertNormalLoc = glGetAttribLocation(phongShader, "vertex_normal");
+            vertNorLoc = glGetAttribLocation(phongShader, "vertex_normal");
             vertTexLoc = glGetAttribLocation(phongShader, "vertex_texture");
+            vertTanLoc = glGetAttribLocation(phongShader, "vertex_tangent");
+            vertBitLoc = glGetAttribLocation(phongShader, "vertex_bitangent");
 
             glEnableVertexAttribArray(vertPosLoc);
             glBindBuffer(GL_ARRAY_BUFFER, vp_vbo);
             glVertexAttribPointer(vertPosLoc, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
-            glEnableVertexAttribArray(vertNormalLoc);
+            glEnableVertexAttribArray(vertNorLoc);
             glBindBuffer(GL_ARRAY_BUFFER, vn_vbo);
-            glVertexAttribPointer(vertNormalLoc, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+            glVertexAttribPointer(vertNorLoc, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
             glEnableVertexAttribArray(vertTexLoc);
             glBindBuffer(GL_ARRAY_BUFFER, vt_vbo);
             glVertexAttribPointer(vertTexLoc, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+
+            glEnableVertexAttribArray(vertTanLoc);
+            glBindBuffer(GL_ARRAY_BUFFER, vta_vbo);
+            glVertexAttribPointer(vertTanLoc, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+
+            glEnableVertexAttribArray(vertBitLoc);
+            glBindBuffer(GL_ARRAY_BUFFER, vbi_vbo);
+            glVertexAttribPointer(vertBitLoc, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
             // save VAO reference in mesh properties
             currentMesh.vao = vao;
@@ -458,10 +504,10 @@ void setMaterial(MaterialData &material, mat4 locMat) {
     glUniform4fv(specularColorLoc, 1, &material.specularColor[0]);
 
     GLint phongExpLoc = glGetUniformLocation(currentShader, "phongExp");
-    glUniform1f(phongExpLoc, material.phongExp);
+    glUniform1f(phongExpLoc, material.phongExp * phongExpScale);
 
     GLint specularCoeffLoc = glGetUniformLocation(currentShader, "specularCoeff");
-    glUniform1f(specularCoeffLoc, material.specularCoeff);
+    glUniform1f(specularCoeffLoc, material.specularCoeff * specularScale);
 
     GLint diffuseMapLoc = glGetUniformLocation(currentShader, "diffuseMap");
     glActiveTexture(GL_TEXTURE0);
@@ -474,13 +520,13 @@ void setMaterial(MaterialData &material, mat4 locMat) {
     glUniform1i(alphaMapLoc, 1);
 
     GLint normalMapLoc = glGetUniformLocation(currentShader, "normalMap");
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, material.alphaMap);
-    glUniform1i(alphaMapLoc, 1);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, material.normalMap);
+    glUniform1i(normalMapLoc, 2);
 }
 
 void renderScene() {
-    vec4 backgroundColor = vec4(0.1f, 0.4f, 0.8f, 1.0f);
+    vec4 backgroundColor = vec4(0.2f, 0.2f, 0.2f, 1.0f);
 
     glEnable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
@@ -488,11 +534,10 @@ void renderScene() {
     glClearColor(backgroundColor.x, backgroundColor.y, backgroundColor.z, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    mat4 model = mat4(1.0f);
     mat4 view = glm::lookAt(camera->position, camera->target, camera->up);
-    mat4 persp_proj = glm::perspective(glm::radians(45.0f), (float) width / (float) height, 0.1f, 1000.0f);
+    mat4 proj = glm::perspective(glm::radians(45.0f), (float) width / (float) height, 0.1f, 1000.0f);
 
-    vec4 LightPositionView = view * model * lightPosition;
+    vec4 LightPositionView = view * lightPosition;
 
     for (int i = 0; i < shaders.size(); i++) {
         GLuint currentShader = *shaders[i];
@@ -500,10 +545,13 @@ void renderScene() {
         int viewMatLoc = glGetUniformLocation(currentShader, "view");
         int projMatLoc = glGetUniformLocation(currentShader, "proj");
 
+        int usesNormalMapLoc = glGetUniformLocation(currentShader, "usesNormalMap");
+        glUniform1i(usesNormalMapLoc, usesNormalMap);
+
         int LightPosLoc = glGetUniformLocation(currentShader, "lightPosition");
         glUniform3fv(LightPosLoc, 1, &LightPositionView[0]);
 
-        glUniformMatrix4fv(projMatLoc, 1, GL_FALSE, &persp_proj[0][0]);
+        glUniformMatrix4fv(projMatLoc, 1, GL_FALSE, &proj[0][0]);
         glUniformMatrix4fv(viewMatLoc, 1, GL_FALSE, &view[0][0]);
     }
 
@@ -536,19 +584,13 @@ void updateScene() {
     double delta = (curr_time - last_time);
     last_time = curr_time;
 
-    fan_rotate_y += 1500.0f * delta;
-    fan_rotate_y = fmodf(fan_rotate_y, 360.0f);
-
-    if (isCockpitView) {
-        camera = &firstPersonCamera;
-    } else {
-        camera = &thirdPersonCamera;
-    }
+    selfRotation += 30.0f * delta;
+    selfRotation = fmodf(selfRotation, 360.0f);
 }
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode) {
     if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
-        isCockpitView = !isCockpitView;
+        usesNormalMap = !usesNormalMap;
 
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GL_TRUE);
@@ -572,24 +614,6 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
         if (key == GLFW_KEY_A) {
             camera->position -= camera->right * camera->translateSpeed;
         }
-        if (key == GLFW_KEY_UP) {
-            rotationAngles.x += 5.0f;
-        }
-        if (key == GLFW_KEY_DOWN) {
-            rotationAngles.x -= 5.0f;
-        }
-        if (key == GLFW_KEY_LEFT) {
-            rotationAngles.y -= 5.0f;
-        }
-        if (key == GLFW_KEY_RIGHT) {
-            rotationAngles.y += 5.0f;
-        }
-        if (key == GLFW_KEY_N) {
-            rotationAngles.z -= 5.0f;
-        }
-        if (key == GLFW_KEY_M) {
-            rotationAngles.z += 5.0f;
-        }
     }
 }
 
@@ -609,21 +633,16 @@ void drawUI() {
     ImGui::SliderFloat("Xt", &camera->target.x, -50.0f, 50.0f);
     ImGui::SliderFloat("Yt", &camera->target.y, -50.0f, 50.0f);
     ImGui::SliderFloat("Zt", &camera->target.z, -50.0f, 50.0f);
-    ImGui::Checkbox("First-person view", &isCockpitView);
 
-    ImGui::Text("Plane rotation:");
-    ImGui::SliderFloat("Plane Yaw", &rotationAngles.y, -180.0f, 180.0f);
-    ImGui::SliderFloat("Plane Pitch", &rotationAngles.x, -180.0f, 180.0f);
-    ImGui::SliderFloat("Plane Roll", &rotationAngles.z, -180.0f, 180.0f);
-    ImGui::Checkbox("Use quaternions", &useQuaternions);
-    if (ImGui::Button("Reset rotation")) {
-        rotationAngles = vec3(0.0f);
-    }
-
+    ImGui::Text("Light source:");
     ImGui::SliderFloat("Xl", &lightPosition.x, -100.0f, 100.0f);
     ImGui::SliderFloat("Yl", &lightPosition.y, -100.0f, 100.0f);
     ImGui::SliderFloat("Zl", &lightPosition.z, -100.0f, 100.0f);
 
+    ImGui::Text("Shader properties:");
+    ImGui::SliderFloat("phong exp scale", &phongExpScale, 0, 5.0f);
+
+    ImGui::Checkbox("Use normal map", &usesNormalMap);
     ImGui::End();
 
     ImGui::Render();
@@ -642,7 +661,7 @@ int main() {
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    window = glfwCreateWindow(width, height, "Plane rotation", NULL, NULL);
+    window = glfwCreateWindow(width, height, "RTR 03 - Normal mapping", NULL, NULL);
     if (window == NULL) {
         std::cerr << "Failed to create a GLFW window." << std::endl;
         glfwTerminate();
