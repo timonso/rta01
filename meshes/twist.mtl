@@ -9,5 +9,6 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.000000
 d 1.000000
 illum 3
-map_Kd metal_grate_rusty_diff_2k.jpg
-map_Bump -bm 1.000000 metal_grate_rusty_nor_gl_2k.jpg
+# map_Kd metal_grate_rusty_diff_2k.jpg
+map_Kd checkerboard.png
+# map_Bump -bm 1.000000 metal_grate_rusty_nor_gl_2k.jpg

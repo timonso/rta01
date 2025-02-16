@@ -6,12 +6,13 @@
 #include <stack>
 #include <cstdlib>
 
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glad/gl.h>
 #define GLFW_INCLUDE_GLEXT
 #define GL_TEXTURE_MAX_ANISOTROPY_EXT 0x84FE
 #define GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT 0x84FF
+
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glad/gl.h>
 #include <GLFW/glfw3.h>
 
 #include <assimp/cimport.h>
@@ -31,8 +32,6 @@ using vec4 = glm::vec4;
 using vec3 = glm::vec3;
 using vec2 = glm::vec2;
 using mat4 = glm::mat4;
-
-static GLFWwindow *window;
 
 typedef mat4 (*InstantiateFn)();
 
@@ -109,8 +108,8 @@ static float maxAnisotropy = 1.0f;
 // window dimensions
 int width = 1200;
 int height = 700;
-int center_x = int(width / 2);
-int center_y = int(height / 2);
+// int center_x = int(width / 2);
+// int center_y = int(height / 2);
 
 // a stack that allows children models to access model matrices from their parent models
 static std::stack<mat4> hierarchyStack;
@@ -122,7 +121,7 @@ bool usesNormalMap = false;
 bool showUI = true;
 
 Camera thirdPersonCamera = {
-    .position = vec3(0.0f, 0.0f, 10.0f),
+    .position = vec3(0.0f, 3.0f, 10.0f),
 };
 Camera *camera = &thirdPersonCamera;
 
@@ -133,7 +132,7 @@ GLuint phongShader;
 std::vector<GLuint *> shaders = {&phongShader};
 
 GLfloat specularScale = 1.0f;
-GLfloat phongExpScale = 1.0f;
+GLfloat phongExpScale = 0.05f;
 
 static mat4 renderTwist() {
     mat4 model = mat4(1.0f);
@@ -172,12 +171,14 @@ static mat4 renderPlane() {
 
 // define model objects and their instances
 std::vector<ModelData> models;
+bool showTwist = true;
+bool showSphere = true;
 bool showPlane = true;
 bool showHills = false;
 bool showCurve = false;
 static std::vector<ModelParams> modelPaths = {
-    // {"../meshes/twist.obj", {renderTwist, renderTwistMirrored}},
-    // {"../meshes/sphere.obj", {renderSphere, renderSphereMirrored}},
+    {"../meshes/twist.obj", &showTwist, {renderTwist, renderTwistMirrored}},
+    {"../meshes/sphere.obj", &showSphere, {renderSphere, renderSphereMirrored}},
     {"../meshes/plane.obj", &showPlane, {renderPlane}},
     {"../meshes/hills.obj", &showHills, {renderPlane}},
     {"../meshes/curve.obj", &showCurve, {renderPlane}},
@@ -638,6 +639,10 @@ void drawUI() {
     ImGui::NewFrame();
     ImGui::Begin("Parameters");
 
+    ImGui::Text("Projection:");
+    ImGui::SliderInt("X", &width, 10, 2000);
+    ImGui::SliderInt("Y", &height, 10, 2000);
+
     ImGui::Text("Camera pos:");
     ImGui::SliderFloat("Xp", &camera->position.x, -50.0f, 50.0f);
     ImGui::SliderFloat("Yp", &camera->position.y, -50.0f, 50.0f);
@@ -668,7 +673,9 @@ void drawUI() {
     }
 
     ImGui::Text("Render layers:");
-    if (ImGui::Checkbox("Plane", &showPlane) ||
+    if (ImGui::Checkbox("Twist", &showTwist) ||
+        ImGui::Checkbox("Sphere", &showSphere) ||
+        ImGui::Checkbox("Plane", &showPlane) ||
         ImGui::Checkbox("Hills", &showHills) ||
         ImGui::Checkbox("Curve", &showCurve)) {
         reloadScene();
@@ -728,10 +735,16 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    window = glfwCreateWindow(width, height, "RTR 04 - MIP mapping", NULL, NULL);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
+
+    static GLFWwindow *window;
+    static GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+    static const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+
+    window = glfwCreateWindow(mode->width, mode->height, "RTR 04 - MIP mapping", NULL, NULL);
     if (window == NULL) {
         std::cerr << "Failed to create a GLFW window." << std::endl;
         glfwTerminate();
