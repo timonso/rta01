@@ -16,6 +16,6 @@ CMake Deprecation Warning at external/glad-3.3/CMakeLists.txt:1 (cmake_minimum_r
 
 
 -- Including Cocoa support
--- Configuring done (0.0s)
+-- Configuring done (0.1s)
 -- Generating done (0.0s)
 -- Build files have been written to: /Users/timon/Downloads/rta01/cmake-build-debug

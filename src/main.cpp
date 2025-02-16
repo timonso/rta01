@@ -9,6 +9,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glad/gl.h>
+#define GLFW_INCLUDE_GLEXT
+#define GL_TEXTURE_MAX_ANISOTROPY_EXT 0x84FE
+#define GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT 0x84FF
 #include <GLFW/glfw3.h>
 
 #include <assimp/cimport.h>
@@ -73,7 +76,8 @@ struct MeshData {
 
 struct ModelParams {
     const char *path;
-    std::vector<InstantiateFn> instantiateFns;
+    const bool *isVisible;
+    const std::vector<InstantiateFn> instantiateFns;
     const vector<MaterialData> materials;
 };
 
@@ -83,6 +87,24 @@ struct ModelData {
     std::vector<MaterialData> materials;
 };
 
+enum class MipConfiguration : GLenum {
+    NO = GL_NONE,
+    NN = GL_NEAREST_MIPMAP_NEAREST,
+    NL = GL_NEAREST_MIPMAP_LINEAR,
+    LN = GL_LINEAR_MIPMAP_NEAREST,
+    LL = GL_LINEAR_MIPMAP_LINEAR,
+};
+
+static MipConfiguration currentMipConfig = MipConfiguration::NO;
+static GLint currentMipConfigIndex = 0;
+static MipConfiguration mipConfigs[] = {
+    MipConfiguration::NO, MipConfiguration::NN, MipConfiguration::NL, MipConfiguration::LN, MipConfiguration::LL
+};
+static char *mipOptions[] = {
+    "None", "Texel: Nearest, Map: Nearest", "Texel: Nearest, Map: Linear", "Texel: Linear, Map: Nearest",
+    "Texel: Linear, Map: Linear"
+};
+static float maxAnisotropy = 1.0f;
 
 // window dimensions
 int width = 1200;
@@ -95,8 +117,9 @@ static std::stack<mat4> hierarchyStack;
 
 // global parameters
 GLfloat selfRotation = 0.0f;
-bool usesNormalMap = true;
 vec3 up_global = vec3(0.0f, 1.0f, 0.0f);
+bool usesNormalMap = false;
+bool showUI = true;
 
 Camera thirdPersonCamera = {
     .position = vec3(0.0f, 0.0f, 10.0f),
@@ -104,7 +127,7 @@ Camera thirdPersonCamera = {
 Camera *camera = &thirdPersonCamera;
 
 const std::string texturePath = "../textures/";
-vec4 lightPosition = vec4(-10.0f, 10.0f, 10.0f, 1.0f);
+vec4 lightPosition = vec4(0.0f, 100.0f, 0.0f, 1.0f);
 
 GLuint phongShader;
 std::vector<GLuint *> shaders = {&phongShader};
@@ -141,11 +164,23 @@ static mat4 renderSphereMirrored() {
     return model;
 }
 
+static mat4 renderPlane() {
+    mat4 model = mat4(1.0f);
+    model = glm::translate(model, vec3(0, -10.0f, 0));
+    return model;
+}
+
 // define model objects and their instances
 std::vector<ModelData> models;
+bool showPlane = true;
+bool showHills = false;
+bool showCurve = false;
 static std::vector<ModelParams> modelPaths = {
-    {"../meshes/twist.obj", {renderTwist, renderTwistMirrored}},
-    {"../meshes/sphere.obj", {renderSphere, renderSphereMirrored}},
+    // {"../meshes/twist.obj", {renderTwist, renderTwistMirrored}},
+    // {"../meshes/sphere.obj", {renderSphere, renderSphereMirrored}},
+    {"../meshes/plane.obj", &showPlane, {renderPlane}},
+    {"../meshes/hills.obj", &showHills, {renderPlane}},
+    {"../meshes/curve.obj", &showCurve, {renderPlane}},
 };
 
 #pragma region MESH LOADING
@@ -175,8 +210,10 @@ GLuint createTexture(const char *path) {
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, static_cast<GLint>(currentMipConfig));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, static_cast<GLint>(currentMipConfig));
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, maxAnisotropy);
+
 
     stbi_image_free(pixels);
     return textureHandle;
@@ -409,6 +446,8 @@ void CompileShaders() {
 void generateObjectBufferMesh() {
     for (int i = 0; i < modelPaths.size(); i++) {
         ModelParams currentModel = modelPaths[i];
+        if (!(*currentModel.isVisible))
+            continue;
         ModelData modelData = read_model(currentModel.path);
         std::vector<MeshData> &submeshes = modelData.submeshes;
         modelData.instantiateFns = currentModel.instantiateFns;
@@ -588,9 +627,72 @@ void updateScene() {
     selfRotation = fmodf(selfRotation, 360.0f);
 }
 
+void reloadScene() {
+    models.clear();
+    generateObjectBufferMesh();
+}
+
+void drawUI() {
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+    ImGui::Begin("Parameters");
+
+    ImGui::Text("Camera pos:");
+    ImGui::SliderFloat("Xp", &camera->position.x, -50.0f, 50.0f);
+    ImGui::SliderFloat("Yp", &camera->position.y, -50.0f, 50.0f);
+    ImGui::SliderFloat("Zp", &camera->position.z, -50.0f, 50.0f);
+
+    ImGui::Text("Camera target:");
+    ImGui::SliderFloat("Xt", &camera->target.x, -50.0f, 50.0f);
+    ImGui::SliderFloat("Yt", &camera->target.y, -50.0f, 50.0f);
+    ImGui::SliderFloat("Zt", &camera->target.z, -50.0f, 50.0f);
+
+    ImGui::Text("Light source:");
+    ImGui::SliderFloat("Xl", &lightPosition.x, -100.0f, 100.0f);
+    ImGui::SliderFloat("Yl", &lightPosition.y, -100.0f, 100.0f);
+    ImGui::SliderFloat("Zl", &lightPosition.z, -100.0f, 100.0f);
+
+    ImGui::Text("Shader properties:");
+    ImGui::SliderFloat("Phong exp scale", &phongExpScale, 0, 5.0f);
+
+    ImGui::Text("MIP map settings:");
+    if (ImGui::Combo("T & M", &currentMipConfigIndex, mipOptions, sizeof(mipOptions) / sizeof(mipOptions[0]))) {
+        std::cout << static_cast<GLint>(mipConfigs[currentMipConfigIndex]) << std::endl;
+        currentMipConfig = mipConfigs[currentMipConfigIndex];
+        reloadScene();
+    }
+
+    if (ImGui::SliderFloat("Max ATF", &maxAnisotropy, 0.0f, 20.0f)) {
+        reloadScene();
+    }
+
+    ImGui::Text("Render layers:");
+    if (ImGui::Checkbox("Plane", &showPlane) ||
+        ImGui::Checkbox("Hills", &showHills) ||
+        ImGui::Checkbox("Curve", &showCurve)) {
+        reloadScene();
+        }
+
+    if (ImGui::Button("Reload scene")) {
+        reloadScene();
+    }
+
+    ImGui::End();
+
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}
+
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode) {
     if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+        showUI = !showUI;
+
+    if (key == GLFW_KEY_N && action == GLFW_PRESS)
         usesNormalMap = !usesNormalMap;
+
+    if (key == GLFW_KEY_R && action == GLFW_PRESS)
+        reloadScene();
 
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GL_TRUE);
@@ -617,38 +719,6 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
     }
 }
 
-
-void drawUI() {
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
-    ImGui::Begin("Parameters");
-
-    ImGui::Text("Camera pos:");
-    ImGui::SliderFloat("Xp", &camera->position.x, -50.0f, 50.0f);
-    ImGui::SliderFloat("Yp", &camera->position.y, -50.0f, 50.0f);
-    ImGui::SliderFloat("Zp", &camera->position.z, -50.0f, 50.0f);
-
-    ImGui::Text("Camera target:");
-    ImGui::SliderFloat("Xt", &camera->target.x, -50.0f, 50.0f);
-    ImGui::SliderFloat("Yt", &camera->target.y, -50.0f, 50.0f);
-    ImGui::SliderFloat("Zt", &camera->target.z, -50.0f, 50.0f);
-
-    ImGui::Text("Light source:");
-    ImGui::SliderFloat("Xl", &lightPosition.x, -100.0f, 100.0f);
-    ImGui::SliderFloat("Yl", &lightPosition.y, -100.0f, 100.0f);
-    ImGui::SliderFloat("Zl", &lightPosition.z, -100.0f, 100.0f);
-
-    ImGui::Text("Shader properties:");
-    ImGui::SliderFloat("phong exp scale", &phongExpScale, 0, 5.0f);
-
-    ImGui::Checkbox("Use normal map", &usesNormalMap);
-    ImGui::End();
-
-    ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-}
-
 int main() {
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW." << std::endl;
@@ -661,7 +731,7 @@ int main() {
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    window = glfwCreateWindow(width, height, "RTR 03 - Normal mapping", NULL, NULL);
+    window = glfwCreateWindow(width, height, "RTR 04 - MIP mapping", NULL, NULL);
     if (window == NULL) {
         std::cerr << "Failed to create a GLFW window." << std::endl;
         glfwTerminate();
@@ -692,13 +762,17 @@ int main() {
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
     (void) io;
+    io.Fonts->AddFontFromFileTTF("../fonts/Lato-Bold.ttf", 16.0f);
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
+
+    // Upload fonts to GPU (if using OpenGL)
+    ImGui_ImplOpenGL3_CreateFontsTexture();
 
     do {
         updateScene();
         renderScene();
-        drawUI();
+        if (showUI) drawUI();
         glfwSwapBuffers(window);
         glfwPollEvents();
     } while (!glfwWindowShouldClose(window));
