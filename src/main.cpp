@@ -51,15 +51,17 @@ struct AtmosphereData {
     float rayleighFactor = 1.0f;
     float mieFactor = 1.0f;
     vec3 planetCenter = vec3(0.0f);
-    float planetRadius = 1.0f;
-    float atmosphereHeight = 0.1f;;
+    float planetRadius = 0.9f;
+    float atmosphereRadius = 1.0f;;
+    float atmosphereThickness = 0.1f;
     float gMie = -0.8f;
+    vec3 wavelengthPeaks = vec3(0.650f, 0.570f, 0.475f);
     vec3 kRayleigh = vec3(3.8f, 13.5f, 33.1f); // TODO: change
     vec3 kMie = vec3(21.0f); // TODO: change
     int outscatterSteps = 10;
     int inscatterSteps = 30;
-    float h0Rayleigh = 0.25f;
-    float h0Mie = 0.25f;
+    float h0Rayleigh = 0.05f;
+    float h0Mie = 0.02f;
 };
 
 struct MaterialData {
@@ -123,9 +125,10 @@ CameraData thirdPersonCamera = {
 CameraData *camera = &thirdPersonCamera;
 
 const std::string texturePath = "../textures/";
-vec4 lightPosition = vec4(0.0f, 1.0f, 0.0f, 1.0f);
+vec4 backgroundColor = vec4(0.2f, 0.2f, 0.2f, 1.0f);
+vec4 lightPosition = vec4(0.0f, 0.0f, -10.0f, 1.0f);
 vec4 lightColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);
-float lightIntensity = 1.0f;
+float lightIntensity = 10.0f;
 
 GLuint phongShader;
 GLuint atmosphereShader;
@@ -133,12 +136,28 @@ std::vector<GLuint *> shaders = {&phongShader, &atmosphereShader};
 
 AtmosphereData atmosphereData = {};
 
+MaterialData phongMaterial = {
+    .baseColor = lightColor,
+    .shader = &phongShader
+};
+
+MaterialData atmosphereMaterial = {
+    .shader = &atmosphereShader
+};
+
 GLfloat specularScale = 1.0f;
 GLfloat phongExpScale = 0.05f;
 
 static mat4 renderAtmosphere() {
     mat4 model = mat4(1.0f);
-    // model = glm::rotate(model, glm::radians(-selfRotation), vec3(0, 1, 0));
+    model = glm::scale(model, vec3(atmosphereData.atmosphereRadius));
+    return model;
+}
+
+static mat4 renderSun() {
+    mat4 model = mat4(1.0f);
+    model = glm::scale(model, vec3(0.1f));
+    model = glm::translate(model, vec3(lightPosition));
     return model;
 }
 
@@ -151,12 +170,14 @@ static mat4 renderSurface() {
 std::vector<ModelData> models;
 bool showEarth = true;
 bool showAtmosphere = true;
+bool showSun = true;
 bool showMoon = false;
 bool showPlane = false;
 bool showHills = false;
 bool showCurve = false;
 static std::vector<ModelParams> modelPaths = {
-    {"../meshes/unit_sphere.obj", &showAtmosphere, {renderAtmosphere}},
+    {"../meshes/unit_sphere.obj", &showAtmosphere, {renderAtmosphere}, {atmosphereMaterial}},
+    {"../meshes/unit_sphere.obj", &showSun, {renderSun}, {phongMaterial}},
 };
 
 #pragma region MESH LOADING
@@ -454,7 +475,9 @@ void generateObjectBufferMesh() {
         ModelData modelData = read_model(currentModel.path);
         std::vector<MeshData> &submeshes = modelData.submeshes;
         modelData.instantiateFns = currentModel.instantiateFns;
-        // modelData.materials = currentModel.materials;
+
+        // overwrite imported materials
+        modelData.materials = currentModel.materials;
 
         // process all meshes in each loaded model
         for (int j = 0; j < submeshes.size(); j++) {
@@ -533,8 +556,9 @@ void generateObjectBufferMesh() {
 
 // write all material properties to the shader
 void setMaterial(MaterialData &material, mat4 locMat) {
-    GLuint currentShader = phongShader;
+    // GLuint currentShader = phongShader;
     // currentShader = atmosphereShader;
+    GLuint currentShader = *material.shader;
     glUseProgram(currentShader);
 
     GLint modelMatLoc = glGetUniformLocation(currentShader, "modelMatrix");
@@ -582,14 +606,14 @@ void setMaterial(MaterialData &material, mat4 locMat) {
     GLint planetRadiusLoc = glGetUniformLocation(currentShader, "planetRadius");
     glUniform1f(planetRadiusLoc, atmosphereData.planetRadius);
 
-    GLint atmosphereHeightLoc = glGetUniformLocation(currentShader, "atmosphereHeight");
-    glUniform1f(atmosphereHeightLoc, atmosphereData.atmosphereHeight);
+    GLint atmosphereRadiusLoc = glGetUniformLocation(currentShader, "atmosphereRadius");
+    glUniform1f(atmosphereRadiusLoc, atmosphereData.atmosphereRadius);
 
     GLint gMieLoc = glGetUniformLocation(currentShader, "gMie");
     glUniform1f(gMieLoc, atmosphereData.gMie);
 
     GLint kRayleighLoc = glGetUniformLocation(currentShader, "kRayleigh");
-    glUniform3fv(kRayleighLoc, 1, &atmosphereData.kRayleigh[0]);
+    glUniform3fv(kRayleighLoc, 1, (&atmosphereData.kRayleigh[0]));
 
     GLint kMieLoc = glGetUniformLocation(currentShader, "kMie");
     glUniform3fv(kMieLoc, 1, &atmosphereData.kMie[0]);
@@ -601,15 +625,13 @@ void setMaterial(MaterialData &material, mat4 locMat) {
     glUniform1i(inscatterStepsLoc, atmosphereData.inscatterSteps);
 
     GLint h0RayleighLoc = glGetUniformLocation(currentShader, "h0Rayleigh");
-    glUniform1f(h0RayleighLoc, atmosphereData.h0Rayleigh);
+    glUniform1f(h0RayleighLoc, atmosphereData.atmosphereThickness * atmosphereData.h0Rayleigh);
 
     GLint h0MieLoc = glGetUniformLocation(currentShader, "h0Mie");
-    glUniform1f(h0MieLoc, atmosphereData.h0Mie);
+    glUniform1f(h0MieLoc, atmosphereData.atmosphereThickness * atmosphereData.h0Mie);
 }
 
 void renderScene() {
-    vec4 backgroundColor = vec4(0.2f, 0.2f, 0.2f, 1.0f);
-
     glEnable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
@@ -635,6 +657,9 @@ void renderScene() {
 
         int lightPosLoc = glGetUniformLocation(currentShader, "lightPosition");
         glUniform3fv(lightPosLoc, 1, &lightPosition[0]);
+
+        int lightIntensityLoc = glGetUniformLocation(currentShader, "lightIntensity");
+        glUniform1f(lightIntensityLoc, lightIntensity);
 
         int viewLightPosLoc = glGetUniformLocation(currentShader, "viewSpaceLightPosition");
         glUniform3fv(viewLightPosLoc, 1, &lightPositionView[0]);
@@ -690,8 +715,11 @@ void drawUI() {
         reloadScene();
     }
 
+    ImGui::Text("Background color:");
+    ImGui::ColorEdit3("Background Color", &backgroundColor[0]);
+
     ImGui::Text("Render layers:");
-    if (ImGui::Checkbox("Earth", &showEarth) ||
+    if (ImGui::Checkbox("Sun", &showSun) ||
         ImGui::Checkbox("Atmosphere", &showAtmosphere)) {
         reloadScene();
     }
@@ -721,22 +749,30 @@ void drawUI() {
     ImGui::ColorEdit3("Light Color", &lightColor[0]);
 
     ImGui::Text("Light intensity:");
-    ImGui::SliderFloat("Intensity", &lightIntensity, 0.0f, 10.0f);
+    ImGui::SliderFloat("Intensity", &lightIntensity, 0.0f, 50.0f);
 
     ImGui::Text("Shader properties:");
     ImGui::SliderFloat("Phong exp scale", &phongExpScale, 0, 5.0f);
 
     ImGui::Text("Atmosphere properties:");
+    ImGui::Text("Atmosphere Thickness: %.3f", atmosphereData.atmosphereThickness);
+    ImGui::SliderFloat3("Planet Center", &atmosphereData.planetCenter[0], -100.0f, 100.0f);
+    if (ImGui::SliderFloat("Planet Radius", &atmosphereData.planetRadius, 0.1f, atmosphereData.atmosphereRadius) ||
+        ImGui::SliderFloat("Atmosphere Radius", &atmosphereData.atmosphereRadius, atmosphereData.planetRadius, 10.0f)) {
+        atmosphereData.atmosphereThickness = atmosphereData.atmosphereRadius - atmosphereData.planetRadius;
+    };
     ImGui::SliderFloat("Rayleigh Factor", &atmosphereData.rayleighFactor, 0.0f, 1.0f);
     ImGui::SliderFloat("Mie Factor", &atmosphereData.mieFactor, 0.0f, 1.0f);
-    ImGui::SliderFloat3("Planet Center", &atmosphereData.planetCenter[0], -100.0f, 100.0f);
-    ImGui::SliderFloat("Planet Radius", &atmosphereData.planetRadius, 0.1f, 100.0f);
-    ImGui::SliderFloat("Atmosphere Height", &atmosphereData.atmosphereHeight, 0.01f, 10.0f);
     ImGui::SliderFloat("g Mie", &atmosphereData.gMie, -0.999f, 0.999f);
+    if (ImGui::SliderFloat3("Wavelength Peaks", &atmosphereData.wavelengthPeaks[0], 0.0f, 1.0f)) {
+        atmosphereData.kRayleigh[0] = 1.0f/pow(atmosphereData.wavelengthPeaks[0], 4.0f);
+        atmosphereData.kRayleigh[1] = 1.0f/pow(atmosphereData.wavelengthPeaks[1], 4.0f);
+        atmosphereData.kRayleigh[2] = 1.0f/pow(atmosphereData.wavelengthPeaks[2], 4.0f);
+    };
     ImGui::SliderFloat3("K Rayleigh", &atmosphereData.kRayleigh[0], 0.0f, 50.0f);
     ImGui::SliderFloat3("K Mie", &atmosphereData.kMie[0], 0.0f, 50.0f);
-    ImGui::SliderInt("Inscatter Steps", &atmosphereData.inscatterSteps, 1, 100);
-    ImGui::SliderInt("Outscatter Steps", &atmosphereData.outscatterSteps, 1, 100);
+    ImGui::SliderInt("In-scattering Steps", &atmosphereData.inscatterSteps, 1, 100);
+    ImGui::SliderInt("Out-scattering Steps", &atmosphereData.outscatterSteps, 1, 100);
     ImGui::SliderFloat("H0 Rayleigh", &atmosphereData.h0Rayleigh, 0.01f, 1.0f);
     ImGui::SliderFloat("H0 Mie", &atmosphereData.h0Mie, 0.01f, 1.0f);
 

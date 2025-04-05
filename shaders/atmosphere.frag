@@ -3,24 +3,24 @@
 #define PI 3.14159
 #define FOUR_PI (4.0 * PI)
 
-uniform vec4 baseColor;
-uniform vec4 specularColor;
-uniform float alpha;
-uniform vec4 ambientColor;
+// uniform vec4 baseColor;
+// uniform vec4 specularColor;
+// uniform float alpha;
+// uniform vec4 ambientColor;
 
 // sunlight intensity
 uniform vec3 lightColor;
 uniform float lightIntensity;
 
-uniform vec3 planetCenter;
 uniform vec3 lightPosition;
 uniform vec3 cameraPosition;
 
+uniform vec3 planetCenter;
+uniform float planetRadius;
+uniform float atmosphereRadius;
+
 uniform float rayleighFactor;
 uniform float mieFactor;
-
-uniform float planetRadius;
-uniform float atmosphereHeight;
 uniform float gMie;
 uniform vec3 kRayleigh; // TODO: divide by pow(.,4)
 uniform vec3 kMie; // TODO: divide by pow(.,0.84)
@@ -29,9 +29,10 @@ uniform int inscatterSteps;
 uniform float h0Rayleigh; // TODO: scale by actual radius
 uniform float h0Mie; // TODO: scale by actual radius
 
-float atmosphereRadius = planetRadius + atmosphereHeight;
 in vec3 worldSpacePosition;
 out vec4 finalColor;
+
+float debugLength = 0.0;
 
 float gMie_sq = pow(gMie, 2.0);
 
@@ -46,7 +47,7 @@ float rayleighPhase(float cosTheta) {
 }
 
 float height(vec3 pX) {
-    return length(pX) - planetRadius;
+    return max(length(pX - planetCenter) - planetRadius, 0.0);
 }
 
 float opticalLength(float h, float h0) {
@@ -96,7 +97,7 @@ vec3 inScattering(vec3 rayOrigin, vec3 rayDirection, float enterAtmosphere, floa
 
     float stride = (enterPlanet - enterAtmosphere) / float(inscatterSteps);
     vec3 strideDirection = rayDirection * stride;
-    vec3 pX = enterAtmosphere + strideDirection * 0.5;
+    vec3 pX = rayOrigin + rayDirection * (enterAtmosphere + stride * 0.5);
     vec3 enterLightDirection = normalize(pX - lightPosition);
 
     vec3 rayleighInScattering = vec3(0.0);
@@ -107,7 +108,7 @@ vec3 inScattering(vec3 rayOrigin, vec3 rayDirection, float enterAtmosphere, floa
         float mieLength = opticalLength(height(pX), h0Mie);
 
         vec3 exitLightDirection = normalize(lightPosition - pX);
-        vec3 ppC = pX + raySphereIntersect(pX, exitLightDirection, planetCenter, planetRadius).y * exitLightDirection;
+        vec3 ppC = pX + raySphereIntersect(pX, exitLightDirection, planetCenter, atmosphereRadius).y * exitLightDirection;
         vec3 ppCOutRayleigh = outScattering(pX, ppC, kRayleigh, h0Rayleigh);
         vec3 ppCOutMie = outScattering(pX, ppC, kMie, h0Mie);
 
@@ -133,9 +134,9 @@ void main() {
     vec2 atmosphereIntersections = raySphereIntersect(cameraPosition, rayDirection, planetCenter, atmosphereRadius);
 
     // discard fragments that don't cover the atmosphere
-    if (atmosphereIntersections.x > atmosphereIntersections.y) {
-        discard;
-    }
+    // if (atmosphereIntersections.x > atmosphereIntersections.y) {
+    //     discard;
+    // }
 
     vec2 planetIntersections = raySphereIntersect(cameraPosition, rayDirection, planetCenter, planetRadius);
     float enterAtmosphere = atmosphereIntersections.x;
@@ -144,5 +145,12 @@ void main() {
     vec3 IvLambda = inScattering(cameraPosition, rayDirection, enterAtmosphere, enterPlanet);
     vec4 IvLambda4 = vec4(IvLambda, 1.0);
     finalColor = pow(IvLambda4,vec4(1.0/2.2));
+
+    // finalColor = vec4(vec3(debugLength), 1.0);
+    // finalColor = vec4(h0Mie);
+    // finalColor = IvLambda4;
+    // finalColor = vec4(lightIntensity);
     // finalColor = vec4(1.0f, 0.0f, 0.0f, 1.0f);
+    // finalColor = vec4(worldSpacePosition, 1.0);
+    // finalColor = vec4(rayDirection, 1.0);
 }

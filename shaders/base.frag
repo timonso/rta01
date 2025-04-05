@@ -25,7 +25,7 @@ vec3 Ld = vec3(1.0, 1.0, 1.0);
 vec3 Ls = vec3(1.0 ,1.0, 1.0);
 vec3 La = vec3(0.0, 0.0, 0.5);
 
-vec4 diffuseColor = texture(diffuseMap, TextureCoords);
+vec4 diffuseColor = texture(diffuseMap, TextureCoords) + baseColor;
 float opacity = texture(alphaMap, TextureCoords).r + alpha;
 
 float Ks = 0.7;
