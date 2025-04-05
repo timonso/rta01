@@ -6,9 +6,7 @@
 #include <stack>
 #include <cstdlib>
 
-#define GLFW_INCLUDE_GLEXT
 #define GL_TEXTURE_MAX_ANISOTROPY_EXT 0x84FE
-#define GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT 0x84FF
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -86,30 +84,15 @@ struct ModelData {
     std::vector<MaterialData> materials;
 };
 
-enum class MipConfiguration : GLenum {
-    NO = GL_NONE,
-    NN = GL_NEAREST_MIPMAP_NEAREST,
-    NL = GL_NEAREST_MIPMAP_LINEAR,
-    LN = GL_LINEAR_MIPMAP_NEAREST,
-    LL = GL_LINEAR_MIPMAP_LINEAR,
-};
-
-static MipConfiguration currentMipConfig = MipConfiguration::NO;
-static GLint currentMipConfigIndex = 0;
-static MipConfiguration mipConfigs[] = {
-    MipConfiguration::NO, MipConfiguration::NN, MipConfiguration::NL, MipConfiguration::LN, MipConfiguration::LL
-};
-static char *mipOptions[] = {
-    "None", "Texel: Nearest, Map: Nearest", "Texel: Nearest, Map: Linear", "Texel: Linear, Map: Nearest",
-    "Texel: Linear, Map: Linear"
-};
-static float maxAnisotropy = 1.0f;
+static int maxAnisotropy = 1;
 
 // window dimensions
 int width = 1200;
 int height = 700;
 // int center_x = int(width / 2);
 // int center_y = int(height / 2);
+float aspectRatio = (float) width / (float) height;
+float FoV = 45.0f;
 
 // a stack that allows children models to access model matrices from their parent models
 static std::stack<mat4> hierarchyStack;
@@ -117,11 +100,10 @@ static std::stack<mat4> hierarchyStack;
 // global parameters
 GLfloat selfRotation = 0.0f;
 vec3 up_global = vec3(0.0f, 1.0f, 0.0f);
-bool usesNormalMap = false;
 bool showUI = true;
 
 Camera thirdPersonCamera = {
-    .position = vec3(0.0f, 3.0f, 10.0f),
+    .position = vec3(0.0f, 0.0f, 10.0f),
 };
 Camera *camera = &thirdPersonCamera;
 
@@ -134,54 +116,23 @@ std::vector<GLuint *> shaders = {&phongShader};
 GLfloat specularScale = 1.0f;
 GLfloat phongExpScale = 0.05f;
 
-static mat4 renderTwist() {
+static mat4 renderEarth() {
     mat4 model = mat4(1.0f);
-    model = glm::rotate(model, glm::radians(-selfRotation), vec3(1, 0, 0));
+    model = glm::rotate(model, glm::radians(-selfRotation), vec3(0, 1, 0));
     hierarchyStack.push(model);
-    return model;
-}
-
-static mat4 renderTwistMirrored() {
-    mat4 model = mat4(1.0f);
-    model = glm::rotate(model, glm::radians(180.0f), vec3(0, 0, 1));
-    model *= hierarchyStack.top();
-    hierarchyStack.pop();
-    return model;
-}
-
-static mat4 renderSphere() {
-    mat4 model = mat4(1.0f);
-    hierarchyStack.push(model);
-    return model;
-}
-
-static mat4 renderSphereMirrored() {
-    mat4 model = mat4(1.0f);
-    model = glm::rotate(model, glm::radians(180.0f), vec3(0, 0, 1));
-    model *= hierarchyStack.top();
-    hierarchyStack.pop();
-    return model;
-}
-
-static mat4 renderPlane() {
-    mat4 model = mat4(1.0f);
-    model = glm::translate(model, vec3(0, -10.0f, 0));
     return model;
 }
 
 // define model objects and their instances
 std::vector<ModelData> models;
-bool showTwist = true;
-bool showSphere = true;
-bool showPlane = true;
+bool showEarth = false;
+bool showMoon = false;
+bool showIngot = true;
+bool showPlane = false;
 bool showHills = false;
 bool showCurve = false;
 static std::vector<ModelParams> modelPaths = {
-    {"../meshes/twist.obj", &showTwist, {renderTwist, renderTwistMirrored}},
-    {"../meshes/sphere.obj", &showSphere, {renderSphere, renderSphereMirrored}},
-    {"../meshes/plane.obj", &showPlane, {renderPlane}},
-    {"../meshes/hills.obj", &showHills, {renderPlane}},
-    {"../meshes/curve.obj", &showCurve, {renderPlane}},
+    {"../meshes/earth.obj", &showEarth, {renderEarth}},
 };
 
 #pragma region MESH LOADING
@@ -211,9 +162,9 @@ GLuint createTexture(const char *path) {
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, static_cast<GLint>(currentMipConfig));
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, static_cast<GLint>(currentMipConfig));
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, maxAnisotropy);
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, static_cast<GLint>(currentMinConfig));
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, static_cast<GLint>(currentMagConfig));
+    // glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 8);
 
 
     stbi_image_free(pixels);
@@ -415,8 +366,8 @@ void CompileShaders() {
         std::cerr << "Error creating shader program..." << std::endl;
     }
 
-    AddShader(phongShader, "../shaders/tangentspace.vert", GL_VERTEX_SHADER);
-    AddShader(phongShader, "../shaders/tangentspace.frag", GL_FRAGMENT_SHADER);
+    AddShader(phongShader, "../shaders/base.vert", GL_VERTEX_SHADER);
+    AddShader(phongShader, "../shaders/base.frag", GL_FRAGMENT_SHADER);
 
     GLint Success = 0;
     GLchar ErrorLog[1024] = {'\0'};
@@ -575,7 +526,7 @@ void renderScene() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     mat4 view = glm::lookAt(camera->position, camera->target, camera->up);
-    mat4 proj = glm::perspective(glm::radians(45.0f), (float) width / (float) height, 0.1f, 1000.0f);
+    mat4 proj = glm::perspective(glm::radians(FoV), aspectRatio, 0.1f, 1000.0f);
 
     vec4 LightPositionView = view * lightPosition;
 
@@ -584,9 +535,6 @@ void renderScene() {
         glUseProgram(currentShader);
         int viewMatLoc = glGetUniformLocation(currentShader, "view");
         int projMatLoc = glGetUniformLocation(currentShader, "proj");
-
-        int usesNormalMapLoc = glGetUniformLocation(currentShader, "usesNormalMap");
-        glUniform1i(usesNormalMapLoc, usesNormalMap);
 
         int LightPosLoc = glGetUniformLocation(currentShader, "lightPosition");
         glUniform3fv(LightPosLoc, 1, &LightPositionView[0]);
@@ -640,8 +588,11 @@ void drawUI() {
     ImGui::Begin("Parameters");
 
     ImGui::Text("Projection:");
-    ImGui::SliderInt("X", &width, 10, 2000);
-    ImGui::SliderInt("Y", &height, 10, 2000);
+    if (ImGui::SliderInt("X", &width, 10, 2000) ||
+        ImGui::SliderInt("Y", &height, 10, 2000)) {
+        aspectRatio = (float) width / (float) height;
+    }
+    ImGui::SliderFloat("FoV", &FoV, 1.0f, 360.0f);
 
     ImGui::Text("Camera pos:");
     ImGui::SliderFloat("Xp", &camera->position.x, -50.0f, 50.0f);
@@ -661,25 +612,11 @@ void drawUI() {
     ImGui::Text("Shader properties:");
     ImGui::SliderFloat("Phong exp scale", &phongExpScale, 0, 5.0f);
 
-    ImGui::Text("MIP map settings:");
-    if (ImGui::Combo("T & M", &currentMipConfigIndex, mipOptions, sizeof(mipOptions) / sizeof(mipOptions[0]))) {
-        std::cout << static_cast<GLint>(mipConfigs[currentMipConfigIndex]) << std::endl;
-        currentMipConfig = mipConfigs[currentMipConfigIndex];
-        reloadScene();
-    }
-
-    if (ImGui::SliderFloat("Max ATF", &maxAnisotropy, 0.0f, 20.0f)) {
-        reloadScene();
-    }
-
     ImGui::Text("Render layers:");
-    if (ImGui::Checkbox("Twist", &showTwist) ||
-        ImGui::Checkbox("Sphere", &showSphere) ||
-        ImGui::Checkbox("Plane", &showPlane) ||
-        ImGui::Checkbox("Hills", &showHills) ||
-        ImGui::Checkbox("Curve", &showCurve)) {
+    if (ImGui::Checkbox("Earth", &showEarth) ||
+        ImGui::Checkbox("Moon", &showMoon)) {
         reloadScene();
-        }
+    }
 
     if (ImGui::Button("Reload scene")) {
         reloadScene();
@@ -694,9 +631,6 @@ void drawUI() {
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode) {
     if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
         showUI = !showUI;
-
-    if (key == GLFW_KEY_N && action == GLFW_PRESS)
-        usesNormalMap = !usesNormalMap;
 
     if (key == GLFW_KEY_R && action == GLFW_PRESS)
         reloadScene();
@@ -741,8 +675,8 @@ int main() {
     glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
 
     static GLFWwindow *window;
-    static GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-    static const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+    static GLFWmonitor *monitor = glfwGetPrimaryMonitor();
+    static const GLFWvidmode *mode = glfwGetVideoMode(monitor);
 
     window = glfwCreateWindow(mode->width, mode->height, "RTR 04 - MIP mapping", NULL, NULL);
     if (window == NULL) {
