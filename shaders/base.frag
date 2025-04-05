@@ -9,7 +9,7 @@ uniform vec4 specularColor;
 uniform float alpha;
 uniform float phongExp;
 uniform float specularCoeff;
-uniform vec3 lightPosition;
+uniform vec3 viewSpaceLightPosition;
 uniform vec4 ambientColor;
 uniform bool usesNormalMap;
 
@@ -37,7 +37,7 @@ void main() {
 	vec3 normal = usesNormalMap ? normalMapValue : PointNormal;
 
 	// Phong illumination
-	vec3 L = (usesNormalMap ? TBN : mat3(1.0)) * normalize(lightPosition - PointPosition);
+	vec3 L = (usesNormalMap ? TBN : mat3(1.0)) * normalize(viewSpaceLightPosition - PointPosition);
 	vec3 V = (usesNormalMap ? TBN : mat3(1.0)) * normalize(-PointPosition);
 	vec3 R = normalize(reflect(-L, normal));
 
@@ -50,6 +50,6 @@ void main() {
 	vec3 Ia = La * Ka;
 
 	vec4 phongColor = vec4(Id + Is + Ia, opacity);
-
 	finalColor = phongColor;
+	// finalColor = vec4(1.0f, 0.0f, 0.0f, 1.0f);
 }

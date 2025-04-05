@@ -3,22 +3,18 @@
 #define PI 3.14159
 #define FOUR_PI (4.0 * PI)
 
-uniform sampler2D diffuseMap;
-uniform sampler2D alphaMap;
-uniform sampler2D normalMap;
-
 uniform vec4 baseColor;
 uniform vec4 specularColor;
 uniform float alpha;
 uniform vec4 ambientColor;
 
 // sunlight intensity
-uniform vec3 IsLambda;
+uniform vec3 lightColor;
+uniform float lightIntensity;
 
 uniform vec3 planetCenter;
 uniform vec3 lightPosition;
 uniform vec3 cameraPosition;
-uniform vec3 cameraDirection;
 
 uniform float rayleighFactor;
 uniform float mieFactor;
@@ -30,8 +26,8 @@ uniform vec3 kRayleigh; // TODO: divide by pow(.,4)
 uniform vec3 kMie; // TODO: divide by pow(.,0.84)
 uniform int outscatterSteps;
 uniform int inscatterSteps;
-uniform float h0Rayleigh;
-uniform float h0Mie;
+uniform float h0Rayleigh; // TODO: scale by actual radius
+uniform float h0Mie; // TODO: scale by actual radius
 
 float atmosphereRadius = planetRadius + atmosphereHeight;
 in vec3 worldSpacePosition;
@@ -40,15 +36,13 @@ out vec4 finalColor;
 float gMie_sq = pow(gMie, 2.0);
 
 // phase function for mie scattering
-float miePhase(float theta) {
-    float cos_theta = cos(theta);
-    return 1.5 * ((1.0 - gMie_sq) / (2.0 + gMie_sq)) * ((1.0 + pow(cos_theta, 2.0)) / pow((1.0 + gMie_sq - 2 * g * cos_theta), 1.5));
+float miePhase(float cosTheta) {
+    return 1.5 * ((1.0 - gMie_sq) / (2.0 + gMie_sq)) * ((1.0 + pow(cosTheta, 2.0)) / pow((1.0 + gMie_sq - 2 * gMie * cosTheta), 1.5));
 }
 
 // phase function for rayleigh scattering
-float rayleighPhase(float theta) {
-    float cos_theta = cos(theta);
-    return 0.75 * (1.0 + pow(cos_theta, 2.0));
+float rayleighPhase(float cosTheta) {
+    return 0.75 * (1.0 + pow(cosTheta, 2.0));
 }
 
 float height(vec3 pX) {
@@ -72,9 +66,7 @@ vec3 outScattering(vec3 pA, vec3 pB, vec3 kLambda, float h0) {
     };
 
     // multiply optical depth approximation by stride length (Riemann sum)
-    vec3 scattering = FOUR_PI * kLambda * (opticalDepth * length(stride));
-
-    return scattering;
+    return FOUR_PI * kLambda * (opticalDepth * length(strideDirection));
 }
 
 vec2 raySphereIntersect(vec3 origin, vec3 direction, vec3 center, float radius) {
@@ -105,21 +97,22 @@ vec3 inScattering(vec3 rayOrigin, vec3 rayDirection, float enterAtmosphere, floa
     float stride = (enterPlanet - enterAtmosphere) / float(inscatterSteps);
     vec3 strideDirection = rayDirection * stride;
     vec3 pX = enterAtmosphere + strideDirection * 0.5;
+    vec3 enterLightDirection = normalize(pX - lightPosition);
 
-    float rayleighInScattering = vec3(0.0);
-    float mieInScattering = vec3(0.0);
+    vec3 rayleighInScattering = vec3(0.0);
+    vec3 mieInScattering = vec3(0.0);
 
     for (int i = 0; i < inscatterSteps; i++) {
         float rayleighLength = opticalLength(height(pX), h0Rayleigh);
         float mieLength = opticalLength(height(pX), h0Mie);
 
-        vec3 lightDirection = normalize(lightPosition - pX);
-        vec2 ppC = pX + raySphereIntersect(pX, lightDirection, planetCenter, planetRadius).y * lightDirection;
-        float ppCOutRayleigh = outScattering(pX, ppC, kRayleigh, h0Rayleigh);
-        float ppCOutMie = outScattering(pX, ppC, kMie, h0Mie);
+        vec3 exitLightDirection = normalize(lightPosition - pX);
+        vec3 ppC = pX + raySphereIntersect(pX, exitLightDirection, planetCenter, planetRadius).y * exitLightDirection;
+        vec3 ppCOutRayleigh = outScattering(pX, ppC, kRayleigh, h0Rayleigh);
+        vec3 ppCOutMie = outScattering(pX, ppC, kMie, h0Mie);
 
         ppAOutRayleigh += FOUR_PI * kRayleigh * rayleighLength * stride;
-        ppAOutMie += FOUR_PI * kMie * MieLength * stride;
+        ppAOutMie += FOUR_PI * kMie * mieLength * stride;
 
         rayleighInScattering += rayleighLength * exp(-ppCOutRayleigh - ppAOutRayleigh);
         mieInScattering += mieLength * exp(-ppCOutMie - ppAOutMie);
@@ -127,18 +120,18 @@ vec3 inScattering(vec3 rayOrigin, vec3 rayDirection, float enterAtmosphere, floa
         pX += strideDirection;
     }
 
-    float theta = acos(dot(rayDirection, -lightDirection));
-    rayleighInScattering *= rayleighPhase(theta) * rayleighFactor;
-    mieInScattering *= miePhase(theta) * mieFactor;
-    IvLambda = IsLambda * (rayleighInscattering + mieInscattering) * stride;
+    float cosTheta = dot(rayDirection, enterLightDirection);
+    rayleighInScattering *= rayleighPhase(cosTheta) * rayleighFactor;
+    mieInScattering *= miePhase(cosTheta) * mieFactor;
+    IvLambda = lightColor * lightIntensity * (rayleighInScattering + mieInScattering) * stride;
     return IvLambda;
 }
 
 void main() {
     vec3 rayDirection = normalize(worldSpacePosition - cameraPosition);
-    
+
     vec2 atmosphereIntersections = raySphereIntersect(cameraPosition, rayDirection, planetCenter, atmosphereRadius);
-    
+
     // discard fragments that don't cover the atmosphere
     if (atmosphereIntersections.x > atmosphereIntersections.y) {
         discard;
@@ -149,6 +142,7 @@ void main() {
     float enterPlanet = planetIntersections.x;
 
     vec3 IvLambda = inScattering(cameraPosition, rayDirection, enterAtmosphere, enterPlanet);
-
-    finalColor = vec4(IvLambda, 1.0);
+    vec4 IvLambda4 = vec4(IvLambda, 1.0);
+    finalColor = pow(IvLambda4,vec4(1.0/2.2));
+    // finalColor = vec4(1.0f, 0.0f, 0.0f, 1.0f);
 }

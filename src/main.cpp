@@ -34,7 +34,7 @@ using mat4 = glm::mat4;
 typedef mat4 (*InstantiateFn)();
 
 // define the default camera properties, with 'direction' moving along the local y-axis
-struct Camera {
+struct CameraData {
     vec3 position = vec3(0.0f, 0.0f, 15.0f);
     vec3 target = vec3(0.0f, 0.0f, 0.0f);
     vec3 right = vec3(1.0f, 0.0f, 0.0f);
@@ -45,6 +45,21 @@ struct Camera {
     GLfloat translateSpeed = 0.6f;
     GLfloat rotateSpeed = 0.5f;
     GLfloat maxRotation = 60.0f;
+};
+
+struct AtmosphereData {
+    float rayleighFactor = 1.0f;
+    float mieFactor = 1.0f;
+    vec3 planetCenter = vec3(0.0f);
+    float planetRadius = 1.0f;
+    float atmosphereHeight = 0.1f;;
+    float gMie = -0.8f;
+    vec3 kRayleigh = vec3(3.8f, 13.5f, 33.1f); // TODO: change
+    vec3 kMie = vec3(21.0f); // TODO: change
+    int outscatterSteps = 10;
+    int inscatterSteps = 30;
+    float h0Rayleigh = 0.25f;
+    float h0Mie = 0.25f;
 };
 
 struct MaterialData {
@@ -102,37 +117,46 @@ GLfloat selfRotation = 0.0f;
 vec3 up_global = vec3(0.0f, 1.0f, 0.0f);
 bool showUI = true;
 
-Camera thirdPersonCamera = {
+CameraData thirdPersonCamera = {
     .position = vec3(0.0f, 0.0f, 10.0f),
 };
-Camera *camera = &thirdPersonCamera;
+CameraData *camera = &thirdPersonCamera;
 
 const std::string texturePath = "../textures/";
-vec4 lightPosition = vec4(0.0f, 100.0f, 0.0f, 1.0f);
+vec4 lightPosition = vec4(0.0f, 1.0f, 0.0f, 1.0f);
+vec4 lightColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+float lightIntensity = 1.0f;
 
 GLuint phongShader;
-std::vector<GLuint *> shaders = {&phongShader};
+GLuint atmosphereShader;
+std::vector<GLuint *> shaders = {&phongShader, &atmosphereShader};
+
+AtmosphereData atmosphereData = {};
 
 GLfloat specularScale = 1.0f;
 GLfloat phongExpScale = 0.05f;
 
-static mat4 renderEarth() {
+static mat4 renderAtmosphere() {
     mat4 model = mat4(1.0f);
-    model = glm::rotate(model, glm::radians(-selfRotation), vec3(0, 1, 0));
-    hierarchyStack.push(model);
+    // model = glm::rotate(model, glm::radians(-selfRotation), vec3(0, 1, 0));
+    return model;
+}
+
+static mat4 renderSurface() {
+    mat4 model = mat4(1.0f);
     return model;
 }
 
 // define model objects and their instances
 std::vector<ModelData> models;
-bool showEarth = false;
+bool showEarth = true;
+bool showAtmosphere = true;
 bool showMoon = false;
-bool showIngot = true;
 bool showPlane = false;
 bool showHills = false;
 bool showCurve = false;
 static std::vector<ModelParams> modelPaths = {
-    {"../meshes/earth.obj", &showEarth, {renderEarth}},
+    {"../meshes/unit_sphere.obj", &showAtmosphere, {renderAtmosphere}},
 };
 
 #pragma region MESH LOADING
@@ -390,6 +414,33 @@ void CompileShaders() {
         std::cerr << "Invalid phong shader program: " << ErrorLog << std::endl;
     }
 
+    atmosphereShader = glCreateProgram();
+
+    if (atmosphereShader == 0) {
+        std::cerr << "Error creating shader program..." << std::endl;
+    }
+
+    AddShader(atmosphereShader, "../shaders/atmosphere.vert", GL_VERTEX_SHADER);
+    AddShader(atmosphereShader, "../shaders/atmosphere.frag", GL_FRAGMENT_SHADER);
+
+    GLuint VAO2;
+    glGenVertexArrays(1, &VAO2);
+    glBindVertexArray(VAO2);
+
+    glLinkProgram(atmosphereShader);
+    glGetProgramiv(atmosphereShader, GL_LINK_STATUS, &Success);
+    if (Success == 0) {
+        glGetProgramInfoLog(atmosphereShader, sizeof(ErrorLog), NULL, ErrorLog);
+        std::cerr << "Error linking atmosphere shader program: " << ErrorLog << std::endl;
+    }
+
+    glValidateProgram(atmosphereShader);
+    glGetProgramiv(atmosphereShader, GL_VALIDATE_STATUS, &Success);
+    if (!Success) {
+        glGetProgramInfoLog(atmosphereShader, sizeof(ErrorLog), NULL, ErrorLog);
+        std::cerr << "Invalid atmosphere shader program: " << ErrorLog << std::endl;
+    }
+
     glBindVertexArray(0);
 }
 #pragma endregion SHADER_FUNCTIONS
@@ -442,33 +493,36 @@ void generateObjectBufferMesh() {
             glBufferData(GL_ARRAY_BUFFER, currentMesh.mPointCount * sizeof(vec3), &currentMesh.mBitangents[0],
                          GL_STATIC_DRAW);
 
-            GLuint vertPosLoc, vertNorLoc, vertTexLoc, vertTanLoc, vertBitLoc;
-            vertPosLoc = glGetAttribLocation(phongShader, "vertex_position");
-            vertNorLoc = glGetAttribLocation(phongShader, "vertex_normal");
-            vertTexLoc = glGetAttribLocation(phongShader, "vertex_texture");
-            vertTanLoc = glGetAttribLocation(phongShader, "vertex_tangent");
-            vertBitLoc = glGetAttribLocation(phongShader, "vertex_bitangent");
+            for (int i = 0; i < shaders.size(); i++) {
+                GLuint currentShader = *shaders[i];
 
-            glEnableVertexAttribArray(vertPosLoc);
-            glBindBuffer(GL_ARRAY_BUFFER, vp_vbo);
-            glVertexAttribPointer(vertPosLoc, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+                GLuint vertPosLoc, vertNorLoc, vertTexLoc, vertTanLoc, vertBitLoc;
+                vertPosLoc = glGetAttribLocation(currentShader, "vertexPosition");
+                vertNorLoc = glGetAttribLocation(currentShader, "vertexNormal");
+                vertTexLoc = glGetAttribLocation(currentShader, "vertexTexture");
+                vertTanLoc = glGetAttribLocation(currentShader, "vertexTangent");
+                vertBitLoc = glGetAttribLocation(currentShader, "vertexBitangent");
 
-            glEnableVertexAttribArray(vertNorLoc);
-            glBindBuffer(GL_ARRAY_BUFFER, vn_vbo);
-            glVertexAttribPointer(vertNorLoc, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+                glEnableVertexAttribArray(vertPosLoc);
+                glBindBuffer(GL_ARRAY_BUFFER, vp_vbo);
+                glVertexAttribPointer(vertPosLoc, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
-            glEnableVertexAttribArray(vertTexLoc);
-            glBindBuffer(GL_ARRAY_BUFFER, vt_vbo);
-            glVertexAttribPointer(vertTexLoc, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+                glEnableVertexAttribArray(vertNorLoc);
+                glBindBuffer(GL_ARRAY_BUFFER, vn_vbo);
+                glVertexAttribPointer(vertNorLoc, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
-            glEnableVertexAttribArray(vertTanLoc);
-            glBindBuffer(GL_ARRAY_BUFFER, vta_vbo);
-            glVertexAttribPointer(vertTanLoc, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+                glEnableVertexAttribArray(vertTexLoc);
+                glBindBuffer(GL_ARRAY_BUFFER, vt_vbo);
+                glVertexAttribPointer(vertTexLoc, 2, GL_FLOAT, GL_FALSE, 0, NULL);
 
-            glEnableVertexAttribArray(vertBitLoc);
-            glBindBuffer(GL_ARRAY_BUFFER, vbi_vbo);
-            glVertexAttribPointer(vertBitLoc, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+                glEnableVertexAttribArray(vertTanLoc);
+                glBindBuffer(GL_ARRAY_BUFFER, vta_vbo);
+                glVertexAttribPointer(vertTanLoc, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
+                glEnableVertexAttribArray(vertBitLoc);
+                glBindBuffer(GL_ARRAY_BUFFER, vbi_vbo);
+                glVertexAttribPointer(vertBitLoc, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+            }
             // save VAO reference in mesh properties
             currentMesh.vao = vao;
         }
@@ -480,9 +534,10 @@ void generateObjectBufferMesh() {
 // write all material properties to the shader
 void setMaterial(MaterialData &material, mat4 locMat) {
     GLuint currentShader = phongShader;
+    // currentShader = atmosphereShader;
     glUseProgram(currentShader);
 
-    GLint modelMatLoc = glGetUniformLocation(currentShader, "model");
+    GLint modelMatLoc = glGetUniformLocation(currentShader, "modelMatrix");
     glUniformMatrix4fv(modelMatLoc, 1, GL_FALSE, &locMat[0][0]);
 
     GLint baseColorLoc = glGetUniformLocation(currentShader, "baseColor");
@@ -514,6 +569,42 @@ void setMaterial(MaterialData &material, mat4 locMat) {
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, material.normalMap);
     glUniform1i(normalMapLoc, 2);
+
+    GLint rayleighFactorLoc = glGetUniformLocation(currentShader, "rayleighFactor");
+    glUniform1f(rayleighFactorLoc, atmosphereData.rayleighFactor);
+
+    GLint mieFactorLoc = glGetUniformLocation(currentShader, "mieFactor");
+    glUniform1f(mieFactorLoc, atmosphereData.mieFactor);
+
+    GLint planetCenterLoc = glGetUniformLocation(currentShader, "planetCenter");
+    glUniform3fv(planetCenterLoc, 1, &atmosphereData.planetCenter[0]);
+
+    GLint planetRadiusLoc = glGetUniformLocation(currentShader, "planetRadius");
+    glUniform1f(planetRadiusLoc, atmosphereData.planetRadius);
+
+    GLint atmosphereHeightLoc = glGetUniformLocation(currentShader, "atmosphereHeight");
+    glUniform1f(atmosphereHeightLoc, atmosphereData.atmosphereHeight);
+
+    GLint gMieLoc = glGetUniformLocation(currentShader, "gMie");
+    glUniform1f(gMieLoc, atmosphereData.gMie);
+
+    GLint kRayleighLoc = glGetUniformLocation(currentShader, "kRayleigh");
+    glUniform3fv(kRayleighLoc, 1, &atmosphereData.kRayleigh[0]);
+
+    GLint kMieLoc = glGetUniformLocation(currentShader, "kMie");
+    glUniform3fv(kMieLoc, 1, &atmosphereData.kMie[0]);
+
+    GLint outscatterStepsLoc = glGetUniformLocation(currentShader, "outscatterSteps");
+    glUniform1i(outscatterStepsLoc, atmosphereData.outscatterSteps);
+
+    GLint inscatterStepsLoc = glGetUniformLocation(currentShader, "inscatterSteps");
+    glUniform1i(inscatterStepsLoc, atmosphereData.inscatterSteps);
+
+    GLint h0RayleighLoc = glGetUniformLocation(currentShader, "h0Rayleigh");
+    glUniform1f(h0RayleighLoc, atmosphereData.h0Rayleigh);
+
+    GLint h0MieLoc = glGetUniformLocation(currentShader, "h0Mie");
+    glUniform1f(h0MieLoc, atmosphereData.h0Mie);
 }
 
 void renderScene() {
@@ -528,19 +619,28 @@ void renderScene() {
     mat4 view = glm::lookAt(camera->position, camera->target, camera->up);
     mat4 proj = glm::perspective(glm::radians(FoV), aspectRatio, 0.1f, 1000.0f);
 
-    vec4 LightPositionView = view * lightPosition;
+    vec4 lightPositionView = view * lightPosition;
 
     for (int i = 0; i < shaders.size(); i++) {
         GLuint currentShader = *shaders[i];
         glUseProgram(currentShader);
-        int viewMatLoc = glGetUniformLocation(currentShader, "view");
-        int projMatLoc = glGetUniformLocation(currentShader, "proj");
-
-        int LightPosLoc = glGetUniformLocation(currentShader, "lightPosition");
-        glUniform3fv(LightPosLoc, 1, &LightPositionView[0]);
-
-        glUniformMatrix4fv(projMatLoc, 1, GL_FALSE, &proj[0][0]);
+        int viewMatLoc = glGetUniformLocation(currentShader, "viewMatrix");
         glUniformMatrix4fv(viewMatLoc, 1, GL_FALSE, &view[0][0]);
+
+        int projMatLoc = glGetUniformLocation(currentShader, "projectionMatrix");
+        glUniformMatrix4fv(projMatLoc, 1, GL_FALSE, &proj[0][0]);
+
+        int cameraPosLoc = glGetUniformLocation(currentShader, "cameraPosition");
+        glUniform3fv(cameraPosLoc, 1, &camera->position[0]);
+
+        int lightPosLoc = glGetUniformLocation(currentShader, "lightPosition");
+        glUniform3fv(lightPosLoc, 1, &lightPosition[0]);
+
+        int viewLightPosLoc = glGetUniformLocation(currentShader, "viewSpaceLightPosition");
+        glUniform3fv(viewLightPosLoc, 1, &lightPositionView[0]);
+
+        int lightColorLoc = glGetUniformLocation(currentShader, "lightColor");
+        glUniform3fv(lightColorLoc, 1, &lightColor[0]);
     }
 
     // instantiate all submeshes of each model
@@ -586,7 +686,15 @@ void drawUI() {
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
     ImGui::Begin("Parameters");
+    if (ImGui::Button("Reload scene")) {
+        reloadScene();
+    }
 
+    ImGui::Text("Render layers:");
+    if (ImGui::Checkbox("Earth", &showEarth) ||
+        ImGui::Checkbox("Atmosphere", &showAtmosphere)) {
+        reloadScene();
+    }
     ImGui::Text("Projection:");
     if (ImGui::SliderInt("X", &width, 10, 2000) ||
         ImGui::SliderInt("Y", &height, 10, 2000)) {
@@ -604,23 +712,33 @@ void drawUI() {
     ImGui::SliderFloat("Yt", &camera->target.y, -50.0f, 50.0f);
     ImGui::SliderFloat("Zt", &camera->target.z, -50.0f, 50.0f);
 
-    ImGui::Text("Light source:");
+    ImGui::Text("Light position:");
     ImGui::SliderFloat("Xl", &lightPosition.x, -100.0f, 100.0f);
     ImGui::SliderFloat("Yl", &lightPosition.y, -100.0f, 100.0f);
     ImGui::SliderFloat("Zl", &lightPosition.z, -100.0f, 100.0f);
 
+    ImGui::Text("Light color:");
+    ImGui::ColorEdit3("Light Color", &lightColor[0]);
+
+    ImGui::Text("Light intensity:");
+    ImGui::SliderFloat("Intensity", &lightIntensity, 0.0f, 10.0f);
+
     ImGui::Text("Shader properties:");
     ImGui::SliderFloat("Phong exp scale", &phongExpScale, 0, 5.0f);
 
-    ImGui::Text("Render layers:");
-    if (ImGui::Checkbox("Earth", &showEarth) ||
-        ImGui::Checkbox("Moon", &showMoon)) {
-        reloadScene();
-    }
-
-    if (ImGui::Button("Reload scene")) {
-        reloadScene();
-    }
+    ImGui::Text("Atmosphere properties:");
+    ImGui::SliderFloat("Rayleigh Factor", &atmosphereData.rayleighFactor, 0.0f, 1.0f);
+    ImGui::SliderFloat("Mie Factor", &atmosphereData.mieFactor, 0.0f, 1.0f);
+    ImGui::SliderFloat3("Planet Center", &atmosphereData.planetCenter[0], -100.0f, 100.0f);
+    ImGui::SliderFloat("Planet Radius", &atmosphereData.planetRadius, 0.1f, 100.0f);
+    ImGui::SliderFloat("Atmosphere Height", &atmosphereData.atmosphereHeight, 0.01f, 10.0f);
+    ImGui::SliderFloat("g Mie", &atmosphereData.gMie, -0.999f, 0.999f);
+    ImGui::SliderFloat3("K Rayleigh", &atmosphereData.kRayleigh[0], 0.0f, 50.0f);
+    ImGui::SliderFloat3("K Mie", &atmosphereData.kMie[0], 0.0f, 50.0f);
+    ImGui::SliderInt("Inscatter Steps", &atmosphereData.inscatterSteps, 1, 100);
+    ImGui::SliderInt("Outscatter Steps", &atmosphereData.outscatterSteps, 1, 100);
+    ImGui::SliderFloat("H0 Rayleigh", &atmosphereData.h0Rayleigh, 0.01f, 1.0f);
+    ImGui::SliderFloat("H0 Mie", &atmosphereData.h0Mie, 0.01f, 1.0f);
 
     ImGui::End();
 
@@ -678,7 +796,7 @@ int main() {
     static GLFWmonitor *monitor = glfwGetPrimaryMonitor();
     static const GLFWvidmode *mode = glfwGetVideoMode(monitor);
 
-    window = glfwCreateWindow(mode->width, mode->height, "RTR 04 - MIP mapping", NULL, NULL);
+    window = glfwCreateWindow(mode->width, mode->height, "RTR 05 - Atmospheric Scattering", NULL, NULL);
     if (window == NULL) {
         std::cerr << "Failed to create a GLFW window." << std::endl;
         glfwTerminate();
