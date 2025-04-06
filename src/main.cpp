@@ -51,17 +51,17 @@ struct AtmosphereData {
     float rayleighFactor = 1.0f;
     float mieFactor = 1.0f;
     vec3 planetCenter = vec3(0.0f);
-    float planetRadius = 0.9f;
+    float planetRadius = 0.98f;
     float atmosphereRadius = 1.0f;;
-    float atmosphereThickness = 0.1f;
+    float atmosphereThickness = 0.02f;
     float gMie = -0.8f;
     vec3 wavelengthPeaks = vec3(0.650f, 0.570f, 0.475f);
-    vec3 kRayleigh = vec3(3.8f, 13.5f, 33.1f); // TODO: change
-    vec3 kMie = vec3(21.0f); // TODO: change
+    vec3 kRayleigh = vec3(1.0f);
+    vec3 kMie = vec3(1.0f);
     int outscatterSteps = 10;
     int inscatterSteps = 30;
-    float h0Rayleigh = 0.05f;
-    float h0Mie = 0.02f;
+    float h0Rayleigh = 0.25f;
+    float h0Mie = 0.1f;
 };
 
 struct MaterialData {
@@ -118,26 +118,32 @@ static std::stack<mat4> hierarchyStack;
 GLfloat selfRotation = 0.0f;
 vec3 up_global = vec3(0.0f, 1.0f, 0.0f);
 bool showUI = true;
+float frameRate = 0.0f;
 
 CameraData thirdPersonCamera = {
-    .position = vec3(0.0f, 0.0f, 10.0f),
+    .position = vec3(0.0f, 0.0f, 8.0f),
 };
 CameraData *camera = &thirdPersonCamera;
 
 const std::string texturePath = "../textures/";
 vec4 backgroundColor = vec4(0.2f, 0.2f, 0.2f, 1.0f);
-vec4 lightPosition = vec4(0.0f, 0.0f, -10.0f, 1.0f);
+vec4 lightPosition = vec4(0.0f, 0.0f, -5.0f, 1.0f);
+vec4 moonPosition = vec4(0.0f, 0.0f, 5.0f, 1.0f);
 vec4 lightColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);
 float lightIntensity = 10.0f;
 
 GLuint phongShader;
+GLuint sunShader;
 GLuint atmosphereShader;
-std::vector<GLuint *> shaders = {&phongShader, &atmosphereShader};
+std::vector<GLuint *> shaders = {&phongShader, &sunShader, &atmosphereShader};
 
 AtmosphereData atmosphereData = {};
 
-MaterialData phongMaterial = {
-    .baseColor = lightColor,
+MaterialData sunMaterial = {
+    .shader = &sunShader
+};
+
+MaterialData moonMaterial = {
     .shader = &phongShader
 };
 
@@ -146,7 +152,7 @@ MaterialData atmosphereMaterial = {
 };
 
 GLfloat specularScale = 1.0f;
-GLfloat phongExpScale = 0.05f;
+GLfloat phongExpScale = 0.5f;
 
 static mat4 renderAtmosphere() {
     mat4 model = mat4(1.0f);
@@ -156,19 +162,20 @@ static mat4 renderAtmosphere() {
 
 static mat4 renderSun() {
     mat4 model = mat4(1.0f);
-    model = glm::scale(model, vec3(0.1f));
     model = glm::translate(model, vec3(lightPosition));
+    model = glm::scale(model, vec3(0.1f));
     return model;
 }
 
-static mat4 renderSurface() {
+static mat4 renderMoon() {
     mat4 model = mat4(1.0f);
+    model = glm::translate(model, vec3(moonPosition));
+    model = glm::scale(model, vec3(0.25f));
     return model;
 }
 
 // define model objects and their instances
 std::vector<ModelData> models;
-bool showEarth = true;
 bool showAtmosphere = true;
 bool showSun = true;
 bool showMoon = false;
@@ -176,8 +183,9 @@ bool showPlane = false;
 bool showHills = false;
 bool showCurve = false;
 static std::vector<ModelParams> modelPaths = {
+    {"../meshes/unit_sphere.obj", &showMoon, {renderMoon}, {moonMaterial}},
     {"../meshes/unit_sphere.obj", &showAtmosphere, {renderAtmosphere}, {atmosphereMaterial}},
-    {"../meshes/unit_sphere.obj", &showSun, {renderSun}, {phongMaterial}},
+    {"../meshes/unit_sphere.obj", &showSun, {renderSun}, {sunMaterial}},
 };
 
 #pragma region MESH LOADING
@@ -404,65 +412,43 @@ static void AddShader(GLuint ShaderProgram, const char *pShaderText, GLenum Shad
     glAttachShader(ShaderProgram, ShaderObj);
 }
 
-void CompileShaders() {
-    phongShader = glCreateProgram();
+void CompileShaders(const std::vector<std::pair<std::string, std::string>> &shaderPaths) {
+    for (int i = 0; i < shaderPaths.size(); i++) {
+        GLuint shaderProgram = glCreateProgram();
 
-    if (phongShader == 0) {
-        std::cerr << "Error creating shader program..." << std::endl;
+        if (shaderProgram == 0) {
+            std::cerr << "Error creating shader program..." << std::endl;
+            continue;
+        }
+
+        AddShader(shaderProgram, shaderPaths[i].first.c_str(), GL_VERTEX_SHADER);
+        AddShader(shaderProgram, shaderPaths[i].second.c_str(), GL_FRAGMENT_SHADER);
+
+        GLint Success = 0;
+        GLchar ErrorLog[1024] = {'\0'};
+
+        GLuint VAO;
+        glGenVertexArrays(1, &VAO);
+        glBindVertexArray(VAO);
+
+        glLinkProgram(shaderProgram);
+        glGetProgramiv(shaderProgram, GL_LINK_STATUS, &Success);
+        if (Success == 0) {
+            glGetProgramInfoLog(shaderProgram, sizeof(ErrorLog), NULL, ErrorLog);
+            std::cerr << "Error linking shader program: " << ErrorLog << std::endl;
+        }
+
+        glValidateProgram(shaderProgram);
+        glGetProgramiv(shaderProgram, GL_VALIDATE_STATUS, &Success);
+        if (!Success) {
+            glGetProgramInfoLog(shaderProgram, sizeof(ErrorLog), NULL, ErrorLog);
+            std::cerr << "Invalid shader program: " << ErrorLog << std::endl;
+        }
+
+        glBindVertexArray(0);
+
+        *shaders[i] = shaderProgram;
     }
-
-    AddShader(phongShader, "../shaders/base.vert", GL_VERTEX_SHADER);
-    AddShader(phongShader, "../shaders/base.frag", GL_FRAGMENT_SHADER);
-
-    GLint Success = 0;
-    GLchar ErrorLog[1024] = {'\0'};
-
-    GLuint VAO;
-    glGenVertexArrays(1, &VAO);
-    glBindVertexArray(VAO);
-
-    glLinkProgram(phongShader);
-    glGetProgramiv(phongShader, GL_LINK_STATUS, &Success);
-    if (Success == 0) {
-        glGetProgramInfoLog(phongShader, sizeof(ErrorLog), NULL, ErrorLog);
-        std::cerr << "Error linking base shader program: " << ErrorLog << std::endl;
-    }
-
-    glValidateProgram(phongShader);
-    glGetProgramiv(phongShader, GL_VALIDATE_STATUS, &Success);
-    if (!Success) {
-        glGetProgramInfoLog(phongShader, sizeof(ErrorLog), NULL, ErrorLog);
-        std::cerr << "Invalid phong shader program: " << ErrorLog << std::endl;
-    }
-
-    atmosphereShader = glCreateProgram();
-
-    if (atmosphereShader == 0) {
-        std::cerr << "Error creating shader program..." << std::endl;
-    }
-
-    AddShader(atmosphereShader, "../shaders/atmosphere.vert", GL_VERTEX_SHADER);
-    AddShader(atmosphereShader, "../shaders/atmosphere.frag", GL_FRAGMENT_SHADER);
-
-    GLuint VAO2;
-    glGenVertexArrays(1, &VAO2);
-    glBindVertexArray(VAO2);
-
-    glLinkProgram(atmosphereShader);
-    glGetProgramiv(atmosphereShader, GL_LINK_STATUS, &Success);
-    if (Success == 0) {
-        glGetProgramInfoLog(atmosphereShader, sizeof(ErrorLog), NULL, ErrorLog);
-        std::cerr << "Error linking atmosphere shader program: " << ErrorLog << std::endl;
-    }
-
-    glValidateProgram(atmosphereShader);
-    glGetProgramiv(atmosphereShader, GL_VALIDATE_STATUS, &Success);
-    if (!Success) {
-        glGetProgramInfoLog(atmosphereShader, sizeof(ErrorLog), NULL, ErrorLog);
-        std::cerr << "Invalid atmosphere shader program: " << ErrorLog << std::endl;
-    }
-
-    glBindVertexArray(0);
 }
 #pragma endregion SHADER_FUNCTIONS
 
@@ -476,8 +462,8 @@ void generateObjectBufferMesh() {
         std::vector<MeshData> &submeshes = modelData.submeshes;
         modelData.instantiateFns = currentModel.instantiateFns;
 
-        // overwrite imported materials
-        modelData.materials = currentModel.materials;
+        // append imported materials
+        modelData.materials.insert(modelData.materials.begin(), currentModel.materials.begin(), currentModel.materials.end());
 
         // process all meshes in each loaded model
         for (int j = 0; j < submeshes.size(); j++) {
@@ -639,7 +625,7 @@ void renderScene() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     mat4 view = glm::lookAt(camera->position, camera->target, camera->up);
-    mat4 proj = glm::perspective(glm::radians(FoV), aspectRatio, 0.1f, 1000.0f);
+    mat4 proj = glm::perspective(glm::radians(FoV), aspectRatio, 0.01f, 1000.0f);
 
     vec4 lightPositionView = view * lightPosition;
 
@@ -706,6 +692,29 @@ void reloadScene() {
     generateObjectBufferMesh();
 }
 
+void computeFrameRate() {
+    static float lastTime = 0.0;
+    static float frameCount = 0;
+    static float fps = 0.0f;
+    float currentTime = glfwGetTime();
+    frameCount++;
+
+    if (currentTime - lastTime > 1.0) {
+        frameRate = frameCount / (currentTime - lastTime);
+        lastTime = currentTime;
+        frameCount = 0;
+    }
+}
+
+void updateKLambda() {
+    atmosphereData.kRayleigh[0] = 1.0f/pow(atmosphereData.wavelengthPeaks[0], 4.0f);
+    atmosphereData.kRayleigh[1] = 1.0f/pow(atmosphereData.wavelengthPeaks[1], 4.0f);
+    atmosphereData.kRayleigh[2] = 1.0f/pow(atmosphereData.wavelengthPeaks[2], 4.0f);
+    atmosphereData.kMie[0] = 1.0f/pow(atmosphereData.wavelengthPeaks[0], 0.84f);
+    atmosphereData.kMie[1] = 1.0f/pow(atmosphereData.wavelengthPeaks[1], 0.84f);
+    atmosphereData.kMie[2] = 1.0f/pow(atmosphereData.wavelengthPeaks[2], 0.84f);
+}
+
 void drawUI() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
@@ -720,7 +729,8 @@ void drawUI() {
 
     ImGui::Text("Render layers:");
     if (ImGui::Checkbox("Sun", &showSun) ||
-        ImGui::Checkbox("Atmosphere", &showAtmosphere)) {
+        ImGui::Checkbox("Atmosphere", &showAtmosphere) ||
+        ImGui::Checkbox("Moon", &showMoon)) {
         reloadScene();
     }
     ImGui::Text("Projection:");
@@ -730,31 +740,31 @@ void drawUI() {
     }
     ImGui::SliderFloat("FoV", &FoV, 1.0f, 360.0f);
 
-    ImGui::Text("Camera pos:");
-    ImGui::SliderFloat("Xp", &camera->position.x, -50.0f, 50.0f);
-    ImGui::SliderFloat("Yp", &camera->position.y, -50.0f, 50.0f);
-    ImGui::SliderFloat("Zp", &camera->position.z, -50.0f, 50.0f);
+    ImGui::Text("Camera Position:");
+    ImGui::SliderFloat("Xp", &camera->position.x, -10.0f, 10.0f);
+    ImGui::SliderFloat("Yp", &camera->position.y, -10.0f, 10.0f);
+    ImGui::SliderFloat("Zp", &camera->position.z, -10.0f, 20.0f);
 
-    ImGui::Text("Camera target:");
-    ImGui::SliderFloat("Xt", &camera->target.x, -50.0f, 50.0f);
-    ImGui::SliderFloat("Yt", &camera->target.y, -50.0f, 50.0f);
-    ImGui::SliderFloat("Zt", &camera->target.z, -50.0f, 50.0f);
+    ImGui::Text("Camera Target:");
+    ImGui::SliderFloat("Xt", &camera->target.x, -10.0f, 10.0f);
+    ImGui::SliderFloat("Yt", &camera->target.y, -10.0f, 10.0f);
+    ImGui::SliderFloat("Zt", &camera->target.z, -10.0f, 10.0f);
 
-    ImGui::Text("Light position:");
-    ImGui::SliderFloat("Xl", &lightPosition.x, -100.0f, 100.0f);
-    ImGui::SliderFloat("Yl", &lightPosition.y, -100.0f, 100.0f);
-    ImGui::SliderFloat("Zl", &lightPosition.z, -100.0f, 100.0f);
+    ImGui::Text("Light Position:");
+    ImGui::SliderFloat("Xl", &lightPosition.x, -10.0f, 10.0f);
+    ImGui::SliderFloat("Yl", &lightPosition.y, -10.0f, 10.0f);
+    ImGui::SliderFloat("Zl", &lightPosition.z, -10.0f, 10.0f);
 
-    ImGui::Text("Light color:");
-    ImGui::ColorEdit3("Light Color", &lightColor[0]);
+    if (ImGui::ColorEdit3("Light Color", &lightColor[0])) {
+        sunMaterial.baseColor = lightColor;
+    };
 
-    ImGui::Text("Light intensity:");
-    ImGui::SliderFloat("Intensity", &lightIntensity, 0.0f, 50.0f);
+    ImGui::SliderFloat("Light Intensity", &lightIntensity, 0.0f, 50.0f);
 
     ImGui::Text("Shader properties:");
     ImGui::SliderFloat("Phong exp scale", &phongExpScale, 0, 5.0f);
 
-    ImGui::Text("Atmosphere properties:");
+    ImGui::Text("Atmosphere Properties:");
     ImGui::Text("Atmosphere Thickness: %.3f", atmosphereData.atmosphereThickness);
     ImGui::SliderFloat3("Planet Center", &atmosphereData.planetCenter[0], -100.0f, 100.0f);
     if (ImGui::SliderFloat("Planet Radius", &atmosphereData.planetRadius, 0.1f, atmosphereData.atmosphereRadius) ||
@@ -765,9 +775,7 @@ void drawUI() {
     ImGui::SliderFloat("Mie Factor", &atmosphereData.mieFactor, 0.0f, 1.0f);
     ImGui::SliderFloat("g Mie", &atmosphereData.gMie, -0.999f, 0.999f);
     if (ImGui::SliderFloat3("Wavelength Peaks", &atmosphereData.wavelengthPeaks[0], 0.0f, 1.0f)) {
-        atmosphereData.kRayleigh[0] = 1.0f/pow(atmosphereData.wavelengthPeaks[0], 4.0f);
-        atmosphereData.kRayleigh[1] = 1.0f/pow(atmosphereData.wavelengthPeaks[1], 4.0f);
-        atmosphereData.kRayleigh[2] = 1.0f/pow(atmosphereData.wavelengthPeaks[2], 4.0f);
+        updateKLambda();
     };
     ImGui::SliderFloat3("K Rayleigh", &atmosphereData.kRayleigh[0], 0.0f, 50.0f);
     ImGui::SliderFloat3("K Mie", &atmosphereData.kMie[0], 0.0f, 50.0f);
@@ -776,6 +784,11 @@ void drawUI() {
     ImGui::SliderFloat("H0 Rayleigh", &atmosphereData.h0Rayleigh, 0.01f, 1.0f);
     ImGui::SliderFloat("H0 Mie", &atmosphereData.h0Mie, 0.01f, 1.0f);
 
+    ImGui::End();
+
+    ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - 200, 10), ImGuiCond_Always);
+    ImGui::Begin("Performance", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove);
+    ImGui::Text("FPS: %.1f", frameRate);
     ImGui::End();
 
     ImGui::Render();
@@ -849,7 +862,13 @@ int main() {
         return -1;
     }
 
-    CompileShaders();
+    updateKLambda();
+
+    CompileShaders({
+        {"../shaders/base.vert", "../shaders/base.frag"},
+        {"../shaders/sun.vert", "../shaders/sun.frag"},
+        {"../shaders/atmosphere.vert", "../shaders/atmosphere.frag"}
+    });
     generateObjectBufferMesh();
 
     glfwWindowHint(GLFW_SAMPLES, 4);
@@ -873,6 +892,7 @@ int main() {
     do {
         updateScene();
         renderScene();
+        computeFrameRate();
         if (showUI) drawUI();
         glfwSwapBuffers(window);
         glfwPollEvents();

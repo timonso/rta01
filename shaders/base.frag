@@ -12,6 +12,7 @@ uniform float specularCoeff;
 uniform vec3 viewSpaceLightPosition;
 uniform vec4 ambientColor;
 uniform bool usesNormalMap;
+uniform vec3 lightColor;
 
 in vec3 PointNormal;
 in vec3 PointPosition;
@@ -28,9 +29,9 @@ vec3 La = vec3(0.0, 0.0, 0.5);
 vec4 diffuseColor = texture(diffuseMap, TextureCoords) + baseColor;
 float opacity = texture(alphaMap, TextureCoords).r + alpha;
 
-float Ks = 0.7;
+float Ks = 0.1;
 float Kd = 0.6;
-float Ka = 0.1;
+float Ka = 0.0;
 
 void main() {
 	vec3 normalMapValue = normalize(vec3(texture(normalMap, TextureCoords)) * 2.0 - 1.0);
@@ -45,11 +46,10 @@ void main() {
 	float dotProdSpec = clamp(dot(R, V), 0.0, 1.0);
 	float specularFactor = max(pow(dotProdSpec, phongExp), 0.0);
 
-	vec3 Id = Ld * Kd * dotProdDiff * vec3(diffuseColor);
-	vec3 Is = Ls * Ks * specularFactor;
-	vec3 Ia = La * Ka;
+	vec3 Id = lightColor * Ld * Kd * dotProdDiff * vec3(diffuseColor);
+	vec3 Is = lightColor * Ls * Ks * specularFactor;
+	vec3 Ia = lightColor * La * Ka;
 
 	vec4 phongColor = vec4(Id + Is + Ia, opacity);
 	finalColor = phongColor;
-	// finalColor = vec4(1.0f, 0.0f, 0.0f, 1.0f);
 }

@@ -2,6 +2,7 @@
 
 #define PI 3.14159
 #define FOUR_PI (4.0 * PI)
+#define GAMMA_INV 1 / 2.2
 
 // uniform vec4 baseColor;
 // uniform vec4 specularColor;
@@ -22,17 +23,17 @@ uniform float atmosphereRadius;
 uniform float rayleighFactor;
 uniform float mieFactor;
 uniform float gMie;
-uniform vec3 kRayleigh; // TODO: divide by pow(.,4)
-uniform vec3 kMie; // TODO: divide by pow(.,0.84)
+uniform vec3 kRayleigh;
+uniform vec3 kMie;
 uniform int outscatterSteps;
 uniform int inscatterSteps;
-uniform float h0Rayleigh; // TODO: scale by actual radius
-uniform float h0Mie; // TODO: scale by actual radius
+uniform float h0Rayleigh;
+uniform float h0Mie;
 
 in vec3 worldSpacePosition;
 out vec4 finalColor;
 
-float debugLength = 0.0;
+vec3 debugVec3 = vec3(0.0f);
 
 float gMie_sq = pow(gMie, 2.0);
 
@@ -47,7 +48,7 @@ float rayleighPhase(float cosTheta) {
 }
 
 float height(vec3 pX) {
-    return max(length(pX - planetCenter) - planetRadius, 0.0);
+    return length(pX - planetCenter) - planetRadius;
 }
 
 float opticalLength(float h, float h0) {
@@ -81,9 +82,9 @@ vec2 raySphereIntersect(vec3 origin, vec3 direction, vec3 center, float radius) 
         return vec2(1, 0);
     }
 
-    float sqrtDiscriminant = sqrt(discriminant);
-    float entry = (-b - sqrtDiscriminant) / (2.0 * a);
-    float exit = (-b + sqrtDiscriminant) / (2.0 * a);
+    float discriminant_sqrt = sqrt(discriminant);
+    float entry = (-b - discriminant_sqrt) / (2.0 * a);
+    float exit = (-b + discriminant_sqrt) / (2.0 * a);
 
     return vec2(entry, exit);
 }
@@ -97,7 +98,7 @@ vec3 inScattering(vec3 rayOrigin, vec3 rayDirection, float enterAtmosphere, floa
 
     float stride = (enterPlanet - enterAtmosphere) / float(inscatterSteps);
     vec3 strideDirection = rayDirection * stride;
-    vec3 pX = rayOrigin + rayDirection * (enterAtmosphere + stride * 0.5);
+    vec3 pX = rayOrigin + rayDirection * (enterAtmosphere + 0.5 * stride);  
     vec3 enterLightDirection = normalize(pX - lightPosition);
 
     vec3 rayleighInScattering = vec3(0.0);
@@ -133,18 +134,17 @@ void main() {
 
     vec2 atmosphereIntersections = raySphereIntersect(cameraPosition, rayDirection, planetCenter, atmosphereRadius);
 
-    // discard fragments that don't cover the atmosphere
-    // if (atmosphereIntersections.x > atmosphereIntersections.y) {
-    //     discard;
-    // }
-
     vec2 planetIntersections = raySphereIntersect(cameraPosition, rayDirection, planetCenter, planetRadius);
     float enterAtmosphere = atmosphereIntersections.x;
     float enterPlanet = planetIntersections.x;
 
+    float tEnter = max(atmosphereIntersections.x, 0.0);
+    float tExit = max(atmosphereIntersections.y, 0.0);
+    if (tEnter > tExit) discard;
+
     vec3 IvLambda = inScattering(cameraPosition, rayDirection, enterAtmosphere, enterPlanet);
     vec4 IvLambda4 = vec4(IvLambda, 1.0);
-    finalColor = pow(IvLambda4,vec4(1.0/2.2));
+    finalColor = pow(IvLambda4, vec4(GAMMA_INV));
 
     // finalColor = vec4(vec3(debugLength), 1.0);
     // finalColor = vec4(h0Mie);
