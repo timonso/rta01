@@ -1,0 +1,275 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.2 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated as
+% required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+\datalist[entry]{none/global//global/global}
+  \entry{jagota_finite_2013}{article}{}
+    \name{author}{3}{}{%
+      {{hash=JV}{%
+         family={Jagota},
+         familyi={J\bibinitperiod},
+         given={Vishal},
+         giveni={V\bibinitperiod},
+      }}%
+      {{hash=SAPS}{%
+         family={Sethi},
+         familyi={S\bibinitperiod},
+         given={Aman Preet\bibnamedelima Singh},
+         giveni={A\bibinitperiod\bibinitdelim P\bibinitperiod\bibinitdelim S\bibinitperiod},
+      }}%
+      {{hash=KK}{%
+         family={Kumar},
+         familyi={K\bibinitperiod},
+         given={Khushmeet},
+         giveni={K\bibinitperiod},
+      }}%
+    }
+    \keyw{approximate solution}
+    \strng{namehash}{JVSAPSKK1}
+    \strng{fullhash}{JVSAPSKK1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{shorttitle}
+    \field{abstract}{%
+    The finite element method ({FEM}) is a numerical analysis technique for obtaining approximate solutions to a wide variety of engineering problems. A finite element model of a problem gives a piecewise approximation to the governing equations. The basic premise of the {FEM} is that a solution region can be analytically modeled or approximated by replacing it with an assemblage of discrete elements (discretization). Since these elements can be put together in a variety of ways, they can be used to represent exceedingly complex shapes.%
+    }
+    \field{issn}{2228-835X}
+    \field{number}{1}
+    \field{pages}{1\bibrangedash 8}
+    \field{shorttitle}{Finite Element Method}
+    \field{title}{Finite Element Method: An Overview}
+    \verb{url}
+    \verb https://wjst.wu.ac.th/index.php/wjst/article/view/499
+    \endverb
+    \field{volume}{10}
+    \field{journaltitle}{Walailak Journal of Science and Technology ({WJST})}
+    \field{day}{28}
+    \field{month}{01}
+    \field{year}{2013}
+  \endentry
+
+  \entry{provot_deformation_1995}{inproceedings}{}
+    \name{author}{1}{}{%
+      {{hash=PX}{%
+         family={Provot},
+         familyi={P\bibinitperiod},
+         given={Xavier},
+         giveni={X\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {Canadian Human-Computer Communications Society}%
+    }
+    \strng{namehash}{PX1}
+    \strng{fullhash}{PX1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{booktitle}{Proceedings of Graphics Interface '95}
+    \field{isbn}{0-9695338-4-5}
+    \field{note}{{ISSN}: 0713-5424 event-place: Quebec, Quebec, Canada}
+    \field{pages}{147\bibrangedash 154}
+    \field{series}{{GI} '95}
+    \field{title}{Deformation Constraints in a Mass-Spring Model to Describe Rigid Cloth Behaviour}
+    \verb{url}
+    \verb http://graphicsinterface.org/wp-content/uploads/gi1995-17.pdf
+    \endverb
+    \list{location}{1}{%
+      {Toronto, Ontario, Canada}%
+    }
+    \field{year}{1995}
+  \endentry
+
+  \entry{muller_position_2007}{article}{}
+    \name{author}{4}{}{%
+      {{hash=MM}{%
+         family={Müller},
+         familyi={M\bibinitperiod},
+         given={Matthias},
+         giveni={M\bibinitperiod},
+      }}%
+      {{hash=HB}{%
+         family={Heidelberger},
+         familyi={H\bibinitperiod},
+         given={Bruno},
+         giveni={B\bibinitperiod},
+      }}%
+      {{hash=HM}{%
+         family={Hennix},
+         familyi={H\bibinitperiod},
+         given={Marcus},
+         giveni={M\bibinitperiod},
+      }}%
+      {{hash=RJ}{%
+         family={Ratcliff},
+         familyi={R\bibinitperiod},
+         given={John},
+         giveni={J\bibinitperiod},
+      }}%
+    }
+    \keyw{Cloth simulation, Game physics, Integration schemes, Physically based simulation}
+    \strng{namehash}{MMHBHM+1}
+    \strng{fullhash}{MMHBHMRJ1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{abstract}{%
+    The most popular approaches for the simulation of dynamic systems in computer graphics are force based. Internal and external forces are accumulated from which accelerations are computed based on Newton's second law of motion. A time integration method is then used to update the velocities and finally the positions of the object. A few simulation methods (most rigid body simulators) use impulse based dynamics and directly manipulate velocities. In this paper we present an approach which omits the velocity layer as well and immediately works on the positions. The main advantage of a position based approach is its controllability. Overshooting problems of explicit integration schemes in force based systems can be avoided. In addition, collision constraints can be handled easily and penetrations can be resolved completely by projecting points to valid locations. We have used the approach to build a real time cloth simulator which is part of a physics software library for games. This application demonstrates the strengths and benefits of the method.%
+    }
+    \verb{doi}
+    \verb https://doi.org/10.1016/j.jvcir.2007.01.005
+    \endverb
+    \field{issn}{1047-3203}
+    \field{number}{2}
+    \field{pages}{109\bibrangedash 118}
+    \field{title}{Position based dynamics}
+    \verb{url}
+    \verb https://www.sciencedirect.com/science/article/pii/S1047320307000065
+    \endverb
+    \field{volume}{18}
+    \field{journaltitle}{Journal of Visual Communication and Image Representation}
+    \field{year}{2007}
+  \endentry
+
+  \entry{noauthor_panel_2023}{online}{}
+    \field{labeltitlesource}{title}
+    \field{abstract}{%
+    The experimental Chaos Cloth Panel Editor in 5.3 supports extra constraint options not available in the legacy cloth editor. This document will provide...%
+    }
+    \field{titleaddon}{Epic Games Developer}
+    \field{title}{Panel Cloth Constraint Node Reference {\textbar} Tutorial}
+    \verb{url}
+    \verb https://dev.epicgames.com/community/learning/tutorials/eKwY/unreal-en
+    \verb gine-panel-cloth-constraint-node-reference
+    \endverb
+    \field{langid}{english}
+    \verb{file}
+    \verb Snapshot:/Users/timon/Zotero/storage/KTBC7WK4/unreal-engine-panel-clo
+    \verb th-constraint-node-reference.html:text/html
+    \endverb
+    \field{day}{06}
+    \field{month}{09}
+    \field{year}{2023}
+    \field{urlday}{31}
+    \field{urlmonth}{03}
+    \field{urlyear}{2025}
+  \endentry
+
+  \entry{noauthor_clothing_nodate}{online}{}
+    \field{labeltitlesource}{title}
+    \field{abstract}{%
+    An overview of the workflow and creative tools used to create and modify clothing assets directly inside Unreal Engine.%
+    }
+    \field{titleaddon}{Epic Games Developer}
+    \field{title}{Clothing Tool in Unreal Engine {\textbar} Unreal Engine 5.5 Documentation {\textbar} Epic Developer Community}
+    \verb{url}
+    \verb https://dev.epicgames.com/documentation/en-us/unreal-engine/clothing-
+    \verb tool-in-unreal-engine
+    \endverb
+    \field{langid}{english}
+    \verb{file}
+    \verb Snapshot:/Users/timon/Zotero/storage/A57J98C6/clothing-tool-in-unreal
+    \verb -engine.html:text/html
+    \endverb
+    \field{urlday}{30}
+    \field{urlmonth}{03}
+    \field{urlyear}{2025}
+  \endentry
+
+  \entry{reeves_particle_1998}{incollection}{}
+    \name{author}{1}{}{%
+      {{hash=RWT}{%
+         family={Reeves},
+         familyi={R\bibinitperiod},
+         given={William\bibnamedelima T},
+         giveni={W\bibinitperiod\bibinitdelim T\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{RWT1}
+    \strng{fullhash}{RWT1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{booktitle}{Seminal graphics: pioneering efforts that shaped the field}
+    \field{pages}{203\bibrangedash 220}
+    \field{title}{Particle systems—a technique for modeling a class of fuzzy objects}
+    \field{year}{1998}
+  \endentry
+
+  \entry{umenhoffer_spherical_2006}{inproceedings}{}
+    \name{author}{3}{}{%
+      {{hash=UT}{%
+         family={Umenhoffer},
+         familyi={U\bibinitperiod},
+         given={Tamás},
+         giveni={T\bibinitperiod},
+      }}%
+      {{hash=SKL}{%
+         family={Szirmay-Kalos},
+         familyi={S\bibinithyphendelim K\bibinitperiod},
+         given={László},
+         giveni={L\bibinitperiod},
+      }}%
+      {{hash=SG}{%
+         family={Szijártó},
+         familyi={S\bibinitperiod},
+         given={Gábor},
+         giveni={G\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{UTSKLSG1}
+    \strng{fullhash}{UTSKLSG1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{booktitle}{Graphics interface}
+    \field{pages}{57\bibrangedash 63}
+    \field{title}{Spherical billboards and their application to rendering explosions.}
+    \field{year}{2006}
+  \endentry
+
+  \entry{noauthor_chapter_nodate}{online}{}
+    \field{labeltitlesource}{title}
+    \field{titleaddon}{{NVIDIA} Developer}
+    \field{title}{Chapter 21. True Impostors}
+    \verb{url}
+    \verb https://developer.nvidia.com/gpugems/gpugems3/part-iv-image-effects/c
+    \verb hapter-21-true-impostors
+    \endverb
+    \field{langid}{american}
+    \field{urlday}{31}
+    \field{urlmonth}{03}
+    \field{urlyear}{2025}
+  \endentry
+
+  \entry{noauthor_overview_nodate}{online}{}
+    \field{labeltitlesource}{title}
+    \field{abstract}{%
+    This page gives an overview of the Niagara {VFX} system in Unreal Engine 5.%
+    }
+    \field{titleaddon}{Epic Games Developer}
+    \field{title}{Overview of Niagara Effects for Unreal Engine {\textbar} Unreal Engine 5.5 Documentation {\textbar} Epic Developer Community}
+    \verb{url}
+    \verb https://dev.epicgames.com/documentation/en-us/unreal-engine/overview-
+    \verb of-niagara-effects-for-unreal-engine
+    \endverb
+    \field{langid}{english}
+    \verb{file}
+    \verb Snapshot:/Users/timon/Zotero/storage/DF5Z6MMI/overview-of-niagara-eff
+    \verb ects-for-unreal-engine.html:text/html
+    \endverb
+    \field{urlday}{30}
+    \field{urlmonth}{03}
+    \field{urlyear}{2025}
+  \endentry
+\enddatalist
+\endinput

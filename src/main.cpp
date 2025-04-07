@@ -54,12 +54,14 @@ struct AtmosphereData {
     float planetRadius = 0.98f;
     float atmosphereRadius = 1.0f;;
     float atmosphereThickness = 0.02f;
+    vec3 surfaceColor = vec3(0.0f);
+    float alpha = 1.0f;
     float gMie = -0.8f;
     vec3 wavelengthPeaks = vec3(0.650f, 0.570f, 0.475f);
     vec3 kRayleigh = vec3(1.0f);
     vec3 kMie = vec3(1.0f);
-    int outscatterSteps = 10;
     int inscatterSteps = 30;
+    int outscatterSteps = 10;
     float h0Rayleigh = 0.25f;
     float h0Mie = 0.1f;
 };
@@ -68,7 +70,7 @@ struct MaterialData {
     std::string name = "material";
     GLuint *shader;
     vec4 baseColor = vec4(0.9f, 0.9f, 0.9f, 1.0f);
-    GLfloat alpha = 1.0f;
+    float alpha = 1.0f;
     vec4 specularColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);
     GLfloat specularCoeff = 0.2f;
     GLfloat phongExp = 100.0f;
@@ -126,11 +128,11 @@ CameraData thirdPersonCamera = {
 CameraData *camera = &thirdPersonCamera;
 
 const std::string texturePath = "../textures/";
-vec4 backgroundColor = vec4(0.2f, 0.2f, 0.2f, 1.0f);
-vec4 lightPosition = vec4(0.0f, 0.0f, -5.0f, 1.0f);
+vec4 backgroundColor = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+vec4 lightPosition = vec4(0.0f, 4.0f, -5.0f, 1.0f);
 vec4 moonPosition = vec4(0.0f, 0.0f, 5.0f, 1.0f);
 vec4 lightColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);
-float lightIntensity = 10.0f;
+float lightIntensity = 20.0f;
 
 GLuint phongShader;
 GLuint sunShader;
@@ -148,6 +150,7 @@ MaterialData moonMaterial = {
 };
 
 MaterialData atmosphereMaterial = {
+    .alpha = 1.0f,
     .shader = &atmosphereShader
 };
 
@@ -162,6 +165,8 @@ static mat4 renderAtmosphere() {
 
 static mat4 renderSun() {
     mat4 model = mat4(1.0f);
+    // TODO: mirror position to align with light direction in shader
+    // model = glm::scale(model, vec3(1.0f, 1.0f, -1.0f));
     model = glm::translate(model, vec3(lightPosition));
     model = glm::scale(model, vec3(0.1f));
     return model;
@@ -184,8 +189,8 @@ bool showHills = false;
 bool showCurve = false;
 static std::vector<ModelParams> modelPaths = {
     {"../meshes/unit_sphere.obj", &showMoon, {renderMoon}, {moonMaterial}},
-    {"../meshes/unit_sphere.obj", &showAtmosphere, {renderAtmosphere}, {atmosphereMaterial}},
     {"../meshes/unit_sphere.obj", &showSun, {renderSun}, {sunMaterial}},
+    {"../meshes/unit_sphere.obj", &showAtmosphere, {renderAtmosphere}, {atmosphereMaterial}},
 };
 
 #pragma region MESH LOADING
@@ -556,6 +561,9 @@ void setMaterial(MaterialData &material, mat4 locMat) {
     GLint alphaLoc = glGetUniformLocation(currentShader, "alpha");
     glUniform1f(alphaLoc, material.alpha);
 
+    GLint atmosphereAlphaLoc = glGetUniformLocation(currentShader, "atmosphereAlpha");
+    glUniform1f(atmosphereAlphaLoc, atmosphereData.alpha);
+
     GLint specularColorLoc = glGetUniformLocation(currentShader, "specularColor");
     glUniform4fv(specularColorLoc, 1, &material.specularColor[0]);
 
@@ -594,6 +602,9 @@ void setMaterial(MaterialData &material, mat4 locMat) {
 
     GLint atmosphereRadiusLoc = glGetUniformLocation(currentShader, "atmosphereRadius");
     glUniform1f(atmosphereRadiusLoc, atmosphereData.atmosphereRadius);
+
+    GLint surfaceColorLoc = glGetUniformLocation(currentShader, "surfaceColor");
+    glUniform3fv(surfaceColorLoc, 1, &atmosphereData.surfaceColor[0]);
 
     GLint gMieLoc = glGetUniformLocation(currentShader, "gMie");
     glUniform1f(gMieLoc, atmosphereData.gMie);
@@ -758,11 +769,10 @@ void drawUI() {
     if (ImGui::ColorEdit3("Light Color", &lightColor[0])) {
         sunMaterial.baseColor = lightColor;
     };
-
+    ImGui::ColorEdit3("Surface Color", &atmosphereData.surfaceColor[0]);
     ImGui::SliderFloat("Light Intensity", &lightIntensity, 0.0f, 50.0f);
-
-    ImGui::Text("Shader properties:");
     ImGui::SliderFloat("Phong exp scale", &phongExpScale, 0, 5.0f);
+    ImGui::SliderFloat("Alpha", &atmosphereData.alpha, 0.0f, 1.0f);
 
     ImGui::Text("Atmosphere Properties:");
     ImGui::Text("Atmosphere Thickness: %.3f", atmosphereData.atmosphereThickness);

@@ -4,18 +4,15 @@
 #define FOUR_PI (4.0 * PI)
 #define GAMMA_INV 1 / 2.2
 
-// uniform vec4 baseColor;
-// uniform vec4 specularColor;
-// uniform float alpha;
-// uniform vec4 ambientColor;
-
 // sunlight intensity
 uniform vec3 lightColor;
 uniform float lightIntensity;
+uniform float atmosphereAlpha;
 
 uniform vec3 lightPosition;
 uniform vec3 cameraPosition;
 
+uniform vec3 surfaceColor;
 uniform vec3 planetCenter;
 uniform float planetRadius;
 uniform float atmosphereRadius;
@@ -33,6 +30,7 @@ uniform float h0Mie;
 in vec3 worldSpacePosition;
 out vec4 finalColor;
 
+int dir = -1;
 vec3 debugVec3 = vec3(0.0f);
 
 float gMie_sq = pow(gMie, 2.0);
@@ -79,7 +77,7 @@ vec2 raySphereIntersect(vec3 origin, vec3 direction, vec3 center, float radius) 
 
     float discriminant = pow(b, 2.0) - 4.0 * a * c;
     if (discriminant < 0.0) {
-        return vec2(1, 0);
+        return vec2(0, -1);
     }
 
     float discriminant_sqrt = sqrt(discriminant);
@@ -98,7 +96,7 @@ vec3 inScattering(vec3 rayOrigin, vec3 rayDirection, float enterAtmosphere, floa
 
     float stride = (enterPlanet - enterAtmosphere) / float(inscatterSteps);
     vec3 strideDirection = rayDirection * stride;
-    vec3 pX = rayOrigin + rayDirection * (enterAtmosphere + 0.5 * stride);  
+    vec3 pX = rayOrigin + rayDirection * (enterAtmosphere + 0.5 * stride);
     vec3 enterLightDirection = normalize(pX - lightPosition);
 
     vec3 rayleighInScattering = vec3(0.0);
@@ -122,28 +120,40 @@ vec3 inScattering(vec3 rayOrigin, vec3 rayDirection, float enterAtmosphere, floa
         pX += strideDirection;
     }
 
-    float cosTheta = dot(rayDirection, enterLightDirection);
+    float cosTheta = dot(rayDirection, dir * enterLightDirection);
     rayleighInScattering *= rayleighPhase(cosTheta) * rayleighFactor;
     mieInScattering *= miePhase(cosTheta) * mieFactor;
     IvLambda = lightColor * lightIntensity * (rayleighInScattering + mieInScattering) * stride;
     return IvLambda;
 }
 
+vec3 surfaceScattering(vec3 rayOrigin, vec3 rayDirection, float enterAtmosphere, float enterPlanet) {
+    vec3 pA = rayOrigin + rayDirection * enterAtmosphere;
+    vec3 pB = rayOrigin + rayDirection * enterPlanet;
+    
+    vec3 surfaceRayleigh = surfaceColor * exp(-outScattering(pA, pB, kRayleigh, h0Rayleigh));
+    vec3 surfaceMie = surfaceColor * exp(-outScattering(pA, pB, kMie, h0Mie));
+
+    return surfaceRayleigh + surfaceMie;
+}
+
 void main() {
-    vec3 rayDirection = normalize(worldSpacePosition - cameraPosition);
+    vec3 rayDirection = dir * normalize(worldSpacePosition - cameraPosition);
 
     vec2 atmosphereIntersections = raySphereIntersect(cameraPosition, rayDirection, planetCenter, atmosphereRadius);
+
+    if (atmosphereIntersections.x > atmosphereIntersections.y) {
+        discard;
+    }
 
     vec2 planetIntersections = raySphereIntersect(cameraPosition, rayDirection, planetCenter, planetRadius);
     float enterAtmosphere = atmosphereIntersections.x;
     float enterPlanet = planetIntersections.x;
 
-    float tEnter = max(atmosphereIntersections.x, 0.0);
-    float tExit = max(atmosphereIntersections.y, 0.0);
-    if (tEnter > tExit) discard;
-
     vec3 IvLambda = inScattering(cameraPosition, rayDirection, enterAtmosphere, enterPlanet);
-    vec4 IvLambda4 = vec4(IvLambda, 1.0);
+    IvLambda += surfaceScattering(cameraPosition, rayDirection, enterAtmosphere, enterPlanet);
+    vec4 IvLambda4 = vec4(IvLambda, atmosphereAlpha);
+
     finalColor = pow(IvLambda4, vec4(GAMMA_INV));
 
     // finalColor = vec4(vec3(debugLength), 1.0);

@@ -1,0 +1,68 @@
+\documentclass[12pt]{article}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{fvextra}
+\usepackage{hyperref}
+\usepackage{subcaption}
+\usepackage[title]{appendix}
+
+\usepackage[backend=bibtex,style=ieee]{biblatex}
+\addbibresource{atmos.bib}
+
+\newcommand{\numpy}{{\tt numpy}}    % tt font for numpy
+
+\DefineVerbatimEnvironment{Verbatim}{Verbatim}{breaklines=true}
+
+\topmargin -.5in
+\textheight 9in
+\oddsidemargin -.25in
+\evensidemargin -.25in
+\textwidth 7in
+\renewcommand{\baselinestretch}{1.3}
+
+\begin{document}
+
+\author{Timon Sommer}
+\title{CS7GV3 Final Assignment: \\ Atmospheric Scattering}
+\date{}
+\maketitle
+
+\textbf{Student ID: 24334440}
+
+% TODO: add yt link
+\textbf{Video: \url{}}
+
+\medskip
+
+\begin{abstract}
+In this report, a method for rendering atmospheric scattering in real-time is investigated and parts of it are implemented using OpenGL and C++.
+Instead of using a pre-computed look-up table (LUT) for properties of the atmosphere, the method relies on a ray-marching approach that determines the scattering of light in the atmosphere in real-time using simplifying assumptions about atmospheric transmittance.
+We eventually find that the implementation is capable of producing visually plausible results at interactive frame rates, while higher iteration counts only slightly improve fidelity yet significantly decrease performance.
+Additionally, the chosen approach currently ignores transparency of the atmosphere towards objects in space and remains limited to views directed from space towards the atmosphere, but can be extended to support views from the ground towards the sky.
+
+\end{abstract}
+
+\section{Background}
+\subsection{Natural Atmospheric Scattering}
+Atmospheric scattering is a phenomenon that occurs when light from space such as sun- or moonlight interacts with particles in the atmosphere, creating visual effects such as the sky appearing blue during the day and red when approaching dawn or dusk.
+Depending on the kind of particle involved, there are two main scattering components as described in \cite{bruneton_precomputed_2008}:
+\begin{itemize}
+    \item Rayleigh scattering: This type of scattering interacts with smaller particles such as air molecules.
+    Since its scattering behaviour depends on the wavelength of the light, it is responsible for the varying colour of the sky at different times of the day.
+    \item Mie scattering: Here, light rays are scattered by bigger particles in the atmosphere such as aerosols.
+    Scattering of this kind affects all wavelengths equally, which causes the sky to appear white or hazy when the sun approaches the horizon.
+\end{itemize}
+\subsection{Precomputed Atmospheric Scattering}
+As light rays travel through the atmosphere from the source to the viewer, light is scattered into and out of the rays along the ray trajectory, modulating the final intensity of all wavelengths.
+Due to the complexity of these processes, the approach presented \cite{bruneton_precomputed_2008} uses a pre-computed LUT to store the scattering properties of the atmosphere.
+Most importantly, this LUT contains the transmittance of the atmosphere at a given height, where the values are calculated using
+
+\newpage
+\printbibliography
+\appendix
+\begin{appendices}
+
+\end{appendices}
+
+\end{document}
