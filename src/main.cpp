@@ -165,8 +165,6 @@ static mat4 renderAtmosphere() {
 
 static mat4 renderSun() {
     mat4 model = mat4(1.0f);
-    // TODO: mirror position to align with light direction in shader
-    // model = glm::scale(model, vec3(1.0f, 1.0f, -1.0f));
     model = glm::translate(model, vec3(lightPosition));
     model = glm::scale(model, vec3(0.1f));
     return model;

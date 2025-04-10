@@ -22,44 +22,44 @@ Database file #2: atmos.bib
 Biblatex version: 3.19
 Reallocated wiz_functions (elt_size=4) to 9000 items from 6000.
 Reallocated singl_function (elt_size=4) to 100 items from 50.
-You've used 2 entries,
+You've used 5 entries,
             6399 wiz_defined-function locations,
-            1217 strings with 10308 characters,
-and the built_in function-call counts, 12010 in all, are:
-= -- 574
-> -- 946
-< -- 59
-+ -- 938
-- -- 764
-* -- 567
-:= -- 1847
+            1243 strings with 11466 characters,
+and the built_in function-call counts, 37127 in all, are:
+= -- 1961
+> -- 2550
+< -- 199
++ -- 2629
+- -- 2040
+* -- 1934
+:= -- 5099
 add.period$ -- 0
-call.type$ -- 2
-change.case$ -- 7
-chr.to.int$ -- 102
-cite$ -- 2
-duplicate$ -- 929
-empty$ -- 794
-format.name$ -- 63
-if$ -- 1845
+call.type$ -- 5
+change.case$ -- 41
+chr.to.int$ -- 210
+cite$ -- 8
+duplicate$ -- 3344
+empty$ -- 2627
+format.name$ -- 248
+if$ -- 5959
 int.to.chr$ -- 0
-int.to.str$ -- 2
+int.to.str$ -- 10
 missing$ -- 0
-newline$ -- 67
-num.names$ -- 38
-pop$ -- 381
+newline$ -- 184
+num.names$ -- 171
+pop$ -- 1405
 preamble$ -- 1
-purify$ -- 13
+purify$ -- 64
 quote$ -- 0
-skip$ -- 303
+skip$ -- 925
 stack$ -- 0
-substring$ -- 1125
-swap$ -- 248
-text.length$ -- 69
+substring$ -- 3639
+swap$ -- 818
+text.length$ -- 183
 text.prefix$ -- 0
 top$ -- 1
-type$ -- 56
+type$ -- 158
 warning$ -- 0
-while$ -- 201
+while$ -- 534
 width$ -- 0
-write$ -- 66
+write$ -- 180

@@ -63,5 +63,122 @@
     \field{urlmonth}{02}
     \field{urlyear}{2025}
   \endentry
+
+  \entry{oneil_chapter_nodate}{online}{}
+    \name{author}{1}{}{%
+      {{hash=OS}{%
+         family={O'Neil},
+         familyi={O\bibinitperiod},
+         given={Sean},
+         giveni={S\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{OS1}
+    \strng{fullhash}{OS1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{titleaddon}{{NVIDIA} Developer}
+    \field{title}{Chapter 16. Accurate Atmospheric Scattering}
+    \verb{url}
+    \verb https://developer.nvidia.com/gpugems/gpugems2/part-ii-shading-lightin
+    \verb g-and-shadows/chapter-16-accurate-atmospheric-scattering
+    \endverb
+    \field{langid}{english}
+    \verb{file}
+    \verb Snapshot:/Users/timon/Zotero/storage/V6H4NWAI/chapter-16-accurate-atm
+    \verb ospheric-scattering.html:text/html
+    \endverb
+    \field{urlday}{06}
+    \field{urlmonth}{04}
+    \field{urlyear}{2025}
+  \endentry
+
+  \entry{nishita_display_1993}{inproceedings}{}
+    \name{author}{4}{}{%
+      {{hash=NT}{%
+         family={Nishita},
+         familyi={N\bibinitperiod},
+         given={Tomoyuki},
+         giveni={T\bibinitperiod},
+      }}%
+      {{hash=ST}{%
+         family={Sirai},
+         familyi={S\bibinitperiod},
+         given={Takao},
+         giveni={T\bibinitperiod},
+      }}%
+      {{hash=TK}{%
+         family={Tadamura},
+         familyi={T\bibinitperiod},
+         given={Katsumi},
+         giveni={K\bibinitperiod},
+      }}%
+      {{hash=NE}{%
+         family={Nakamae},
+         familyi={N\bibinitperiod},
+         given={Eihachiro},
+         giveni={E\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {{ACM}}%
+    }
+    \strng{namehash}{NTSTTK+1}
+    \strng{fullhash}{NTSTTKNE1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{booktitle}{Proceedings of the 20th annual conference on Computer graphics and interactive techniques}
+    \verb{doi}
+    \verb 10.1145/166117.166140
+    \endverb
+    \field{eventtitle}{{SIGGRAPH}93: 20th Annual Conference and Exhibition on Computer Graphics and Interactive Techniques}
+    \field{isbn}{978-0-89791-601-1}
+    \field{pages}{175\bibrangedash 182}
+    \field{title}{Display of the earth taking into account atmospheric scattering}
+    \verb{url}
+    \verb https://dl.acm.org/doi/10.1145/166117.166140
+    \endverb
+    \field{langid}{english}
+    \list{location}{1}{%
+      {Anaheim {CA}}%
+    }
+    \verb{file}
+    \verb Full Text PDF:/Users/timon/Zotero/storage/IR2TAAQT/Nishita et al. - 1
+    \verb 993 - Display of the earth taking into account atmospheric scattering
+    \verb .pdf:application/pdf
+    \endverb
+    \field{month}{09}
+    \field{year}{1993}
+    \field{urlday}{06}
+    \field{urlmonth}{04}
+    \field{urlyear}{2025}
+  \endentry
+
+  \entry{gltracy_shadertoy_nodate}{online}{}
+    \name{author}{1}{}{%
+      {{hash=g}{%
+         family={gltracy},
+         familyi={g\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{g1}
+    \strng{fullhash}{g1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{abstract}{%
+    Build shaders, share them, and learn from the best community.%
+    }
+    \field{title}{Shadertoy}
+    \verb{url}
+    \verb https://www.shadertoy.com/view/lslXDr
+    \endverb
+    \field{langid}{english}
+    \verb{file}
+    \verb Snapshot:/Users/timon/Zotero/storage/TPSMLPQN/lslXDr.html:text/html
+    \endverb
+    \field{urlday}{06}
+    \field{urlmonth}{04}
+    \field{urlyear}{2025}
+  \endentry
 \enddatalist
 \endinput
